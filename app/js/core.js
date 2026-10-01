@@ -2,10 +2,12 @@
 // 不碰 DOM，方便在 Node 中測試。
 
 import { CHAKRAS } from './chakras.js';
+import { sanitizeBoard } from './board-core.js';
 
 export const ITEMS_PER_DAY = 3;
 export const BACKUP_APP_ID = 'success-journal';
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
+const MAX_IMAGE_DATA = 12 * 1024 * 1024;
 
 const DAY_MS = 86400000;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -158,7 +160,10 @@ export function monthGrid(year, month /* 1-12 */) {
 
 /* ---------- 備份 ---------- */
 
-export function buildBackup(entries, now = new Date()) {
+/**
+ * 建立備份內容。boards 為夢想板版面，images 為 { id: { data: dataURL, width, height } }。
+ */
+export function buildBackup(entries, now = new Date(), { boards = [], images = {} } = {}) {
   const sorted = {};
   for (const key of Object.keys(entries).sort()) {
     if (isValidKey(key) && hasRecord(entries[key])) sorted[key] = entries[key];
@@ -168,6 +173,8 @@ export function buildBackup(entries, now = new Date()) {
     version: BACKUP_VERSION,
     exportedAt: now.toISOString(),
     entries: sorted,
+    boards,
+    images,
   };
 }
 
@@ -197,7 +204,23 @@ export function parseBackup(text) {
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
     };
   }
-  return { entries, count: Object.keys(entries).length };
+  const boards = (Array.isArray(data.boards) ? data.boards : []).map(sanitizeBoard).filter(Boolean);
+  const images = {};
+  if (data.images && typeof data.images === 'object') {
+    for (const [id, img] of Object.entries(data.images)) {
+      if (!img || typeof img.data !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(img.data)) continue;
+      if (img.data.length > MAX_IMAGE_DATA) continue;
+      images[id.slice(0, 64)] = { data: img.data, width: Number(img.width) || 0, height: Number(img.height) || 0 };
+    }
+  }
+  return { entries, count: Object.keys(entries).length, boards, images };
+}
+
+/** 合併夢想板：同 id 以備份為準，其他保留 */
+export function mergeBoards(current, incoming) {
+  const map = new Map(current.map((b) => [b.id, b]));
+  for (const b of incoming) map.set(b.id, b);
+  return [...map.values()];
 }
 
 /** 合併：備份檔中的日期覆蓋現有同日期紀錄，其他保留 */
@@ -205,7 +228,7 @@ export function mergeEntries(current, incoming) {
   return { ...current, ...incoming };
 }
 
-export function buildTextExport(entries) {
+export function buildTextExport(entries, boards = []) {
   const keys = Object.keys(entries)
     .filter((k) => isValidKey(k) && hasRecord(entries[k]))
     .sort();
@@ -220,6 +243,15 @@ export function buildTextExport(entries) {
       for (const r of rest) lines.push(`     ${r}`);
     });
     lines.push('');
+  }
+  const dreams = boards.filter((b) => b.items.some((it) => it.type === 'text'));
+  if (dreams.length) {
+    lines.push('夢想板', '='.repeat(20), '');
+    for (const b of dreams) {
+      lines.push(b.title || '我的夢想板');
+      for (const it of b.items.filter((i) => i.type === 'text')) lines.push(`  ・${it.text.replace(/\n/g, ' ')}`);
+      lines.push('');
+    }
   }
   return lines.join('\n');
 }

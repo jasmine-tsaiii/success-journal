@@ -28,6 +28,44 @@ export function saveEntries(entries) {
   localStorage.setItem(KEY, JSON.stringify(entries));
 }
 
+const BOARDS_KEY = 'success-journal.boards.v1';
+const SETTINGS_KEY = 'success-journal.settings.v1';
+
+function loadJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const data = JSON.parse(raw);
+    return data && typeof data === 'object' ? data : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** 夢想板版面（照片本身存在 IndexedDB，見 images.js） */
+export function loadBoards() {
+  const data = loadJson(BOARDS_KEY, []);
+  return Array.isArray(data) ? data : [];
+}
+
+export function saveBoards(boards) {
+  localStorage.setItem(BOARDS_KEY, JSON.stringify(boards));
+}
+
+export const DEFAULT_SETTINGS = { showChakra: true };
+
+export function loadSettings() {
+  return { ...DEFAULT_SETTINGS, ...loadJson(SETTINGS_KEY, {}) };
+}
+
+export function saveSettings(settings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    /* 忽略 */
+  }
+}
+
 /** 請瀏覽器盡量不要自動清除本站資料（支援的瀏覽器才會生效） */
 export async function requestPersistence() {
   try {
