@@ -242,27 +242,32 @@ function toggleTag(i, tag) {
   renderTagRows();
 }
 
+let activeRow = null; // 正在書寫的那一件（只有它會出現「#」按鈕）
+
 function renderTagRows() {
   for (let i = 0; i < ITEMS_PER_DAY; i++) {
     const row = $(`tags-${i}`);
     row.textContent = '';
     const picked = state.dayTags[i];
-    const typed = extractHashtags(textareas[i].value).filter((t) => !picked.includes(t));
-    for (const tag of picked) row.appendChild(tagButton(`#${tag}`, { on: true, onClick: () => toggleTag(i, tag) }));
-    for (const tag of typed) {
-      const span = document.createElement('span');
-      span.className = 'tag-chip typed';
-      span.textContent = `#${tag}`;
-      row.appendChild(span);
-    }
     const open = state.openPicker === i;
-    const toggle = tagButton(open ? '完成' : '＃ 標籤', {
+    row.closest('li').classList.toggle('writing', activeRow === i || open);
+
+    // 已選的標籤：小字顯示在事件下方，不搶版面
+    if (picked.length) {
+      const list = document.createElement('span');
+      list.className = 'tag-list';
+      list.textContent = picked.map((t) => `#${t}`).join(' ');
+      row.appendChild(list);
+    }
+    const toggle = tagButton(open ? '完成' : '#', {
       cls: 'tag-toggle',
       onClick: () => {
         state.openPicker = open ? null : i;
+        activeRow = i;
         renderTagRows();
       },
     });
+    toggle.setAttribute('aria-label', open ? '完成選擇標籤' : '加上標籤（選填）');
     toggle.setAttribute('aria-expanded', String(open));
     row.appendChild(toggle);
     if (!open) continue;
@@ -706,7 +711,21 @@ function bind() {
 const boards = initBoards({ toast, stamp });
 
 function bindTags() {
-  textareas.forEach((ta) => ta.addEventListener('input', () => /[#＃]/.test(ta.value) && renderTagRows()));
+  textareas.forEach((ta, i) =>
+    ta.addEventListener('focus', () => {
+      if (activeRow === i) return;
+      activeRow = i;
+      if (state.openPicker !== i) state.openPicker = null;
+      renderTagRows();
+    }),
+  );
+  // 點在三件成功以外的地方：收起「#」按鈕與標籤選單
+  document.addEventListener('pointerdown', (e) => {
+    if (activeRow === null || e.target.closest('.win-list li')) return;
+    activeRow = null;
+    state.openPicker = null;
+    renderTagRows();
+  });
   document.querySelectorAll('input[name="period"]').forEach((r) =>
     r.addEventListener('change', () => {
       state.period = r.value;
@@ -753,8 +772,23 @@ function bindSettings() {
   });
 }
 
+const NOTE_SNOOZE_DAYS = 7;
+
+function bindPrivacyNote() {
+  const note = $('privacy-note');
+  const until = Date.parse(state.settings.privacyNoteHiddenAt || '') + NOTE_SNOOZE_DAYS * 86400000;
+  note.hidden = Number.isFinite(until) && Date.now() < until;
+  $('privacy-close').addEventListener('click', () => {
+    note.hidden = true;
+    state.settings = { ...state.settings, privacyNoteHiddenAt: new Date().toISOString() };
+    saveSettings(state.settings);
+    toast('已收起，7 天後會再提醒你備份');
+  });
+}
+
 function init() {
   bind();
+  bindPrivacyNote();
   bindSettings();
   bindTags();
   if (!storageOk) {

@@ -445,17 +445,27 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   await page.fill('#item-2', '十分鐘冥想');
   await page.locator('#item-2').blur();
 
-  // 第二件：點「＃ 標籤」→ 健康
+  // 平常不顯示「#」，只有正在寫的那一件才出現
+  assert.equal(await page.isVisible('#tags-0 .tag-toggle'), false);
+  assert.equal(await page.isVisible('#tags-2 .tag-toggle'), true);
+  // 第二件：點「#」→ 健康
+  await page.click('#item-1');
   await page.click('#tags-1 .tag-toggle');
   await page.click('#tags-1 .tag-picker .tag-chip >> text=健康');
   // 第三件：自訂標籤「冥想」，同時勾選「自我照顧」
+  await page.click('#item-2');
   await page.click('#tags-2 .tag-toggle');
   await page.fill('#tags-2 .tag-new input', '#冥想');
   await page.click('#tags-2 .tag-new button');
   await page.click('#tags-2 .tag-picker .tag-chip >> text=自我照顧');
   await page.click('#tags-2 .tag-toggle');
-  assert.equal(await page.textContent('#tags-0 .tag-chip.typed'), '#工作');
-  assert.deepEqual(await page.locator('#tags-2 .tag-chip.on').allTextContents(), ['#冥想', '#自我照顧']);
+  assert.equal(await page.textContent('#tags-2 .tag-list'), '#冥想 #自我照顧');
+  assert.equal(await page.textContent('#tags-1 .tag-list'), '#健康');
+  // 點在其他地方：「#」收起，已選標籤仍以小字顯示
+  await page.click('.prompt-text');
+  assert.equal(await page.isVisible('#tags-2 .tag-toggle'), false);
+  assert.equal(await page.isVisible('#tags-2 .tag-list'), true);
+  assert.equal(await page.locator('#tags-0 .tag-list').count(), 0, '文字裡的 #標籤 不重複顯示');
   await shot(page, '20-tags-today');
 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
@@ -464,6 +474,7 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   // 昨天也記一筆工作，讓工作成為本月最多
   await page.click('#prev-day');
   await page.fill('#item-0', '回完所有信件');
+  await page.click('#item-0');
   await page.click('#tags-0 .tag-toggle');
   await page.click('#tags-0 .tag-picker .tag-chip >> text=工作');
 
@@ -496,5 +507,26 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   assert.deepEqual(backup.entries['2026-09-30'].tags[0], ['工作']);
 
   assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('隱私提醒：預設收合成一行，按 × 之後 7 天內不再出現', async () => {
+  const { context, page } = await newPage();
+  assert.equal(await page.isVisible('#privacy-note'), true);
+  assert.equal(await page.isVisible('#privacy-note details > p'), false, '預設收合');
+  await page.click('#privacy-note summary');
+  assert.equal(await page.isVisible('#privacy-note details > p'), true);
+  await page.click('#privacy-close');
+  assert.equal(await page.isHidden('#privacy-note'), true);
+  await page.reload();
+  assert.equal(await page.isHidden('#privacy-note'), true, '7 天內不顯示');
+  // 模擬 8 天前收起
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('success-journal.settings.v1'));
+    s.privacyNoteHiddenAt = new Date(Date.now() - 8 * 86400000).toISOString();
+    localStorage.setItem('success-journal.settings.v1', JSON.stringify(s));
+  });
+  await page.reload();
+  assert.equal(await page.isVisible('#privacy-note'), true, '超過 7 天再提醒');
   await context.close();
 });

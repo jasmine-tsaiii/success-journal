@@ -83,16 +83,17 @@
           <li><span class="win-num" aria-hidden="true">02</span><div class="win-body"><label for="item-1" class="visually-hidden">第二件</label><textarea id="item-1" rows="1" maxlength="2000" placeholder="再小的事都算數"></textarea><div class="win-tags" id="tags-1" data-i="1"></div></div></li>
           <li><span class="win-num" aria-hidden="true">03</span><div class="win-body"><label for="item-2" class="visually-hidden">第三件</label><textarea id="item-2" rows="1" maxlength="2000" placeholder="對自己說一聲謝謝"></textarea><div class="win-tags" id="tags-2" data-i="2"></div></div></li>
         </ol>
-        <p class="small tag-hint">點「＃ 標籤」幫每件成功分類，也可以直接在文字裡打 #標籤。</p>
         <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
       </form>
 
-      <aside class="note-card">
-        <p class="label-caps">Privacy</p>
-        <h2 class="note-title">你的日記只存在這台裝置</h2>
-        <p>不需要帳號。你的日記、願景板和照片，只儲存在你目前使用的手機或電腦瀏覽器裡，不會上傳到任何伺服器，任何人（包括 Jasmine）都看不到。</p>
-        <p>也因此，<strong>換手機、清除瀏覽器資料或刪除 App 之前，請先到「設定」下載備份檔</strong>，之後再匯入就能還原。</p>
-        <button type="button" class="text-btn" data-goto="data">前往設定與備份 →</button>
+      <aside class="note-card" id="privacy-note" hidden>
+        <details>
+          <summary><span class="label-caps">Privacy</span><span class="note-line">資料只存在本機・記得備份</span></summary>
+          <p>不需要帳號。你的日記、願景板和照片，只儲存在你目前使用的手機或電腦瀏覽器裡，不會上傳到任何伺服器，任何人（包括 Jasmine）都看不到。</p>
+          <p>也因此，<strong>換手機、清除瀏覽器資料或刪除 App 之前，請先到「設定」下載備份檔</strong>，之後再匯入就能還原。</p>
+          <button type="button" class="text-btn" data-goto="data">前往設定與備份 →</button>
+        </details>
+        <button type="button" class="note-close" id="privacy-close" aria-label="收起提醒（7 天後再顯示）">×</button>
       </aside>
     </section>
 
