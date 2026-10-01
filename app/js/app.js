@@ -32,6 +32,8 @@ import { initBoards } from './board-ui.js';
 import { canvasToBlob, renderDayCard, shareBackup, shareOrDownload } from './share.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
+import * as cloud from './cloud.js';
+import { initSync } from './sync.js';
 
 const $ = (id) => document.getElementById(id);
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -132,7 +134,10 @@ function showView(name, { updateHash = true } = {}) {
   if (name === 'calendar') renderCalendar();
   if (name === 'today') renderToday();
   if (name === 'dreams') boards.show();
-  if (name === 'data') renderTagManage();
+  if (name === 'data') {
+    renderTagManage();
+    renderCloud();
+  }
   if (updateHash && location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
   window.scrollTo({ top: 0 });
 }
@@ -606,7 +611,7 @@ function updateBackupNudge() {
   const last = Date.parse(state.settings.lastBackupAt || '');
   const snoozed = now < Date.parse(state.settings.backupSnoozeUntil || '');
   const daysSince = Number.isFinite(last) ? Math.floor((now - last) / DAY_MS) : null;
-  const due = recordedDays >= 3 && (daysSince === null || daysSince >= BACKUP_EVERY_DAYS) && !snoozed;
+  const due = !cloud.getSession() && recordedDays >= 3 && (daysSince === null || daysSince >= BACKUP_EVERY_DAYS) && !snoozed;
   nudge.hidden = !due;
   if (due) {
     $('backup-nudge-text').textContent =
@@ -614,8 +619,8 @@ function updateBackupNudge() {
         ? `你已經記錄了 ${recordedDays} 天，還沒有備份過。存一份到雲端，換手機也不怕。`
         : `距離上次備份已經 ${daysSince} 天了，存一份新的吧。`;
   }
-  // 同時只顯示一個提醒
-  $('privacy-note').classList.toggle('muted-by-nudge', due);
+  // 同時只顯示一個提醒；已登入雲端同步時不需要「資料只存在本機」的提醒
+  $('privacy-note').classList.toggle('muted-by-nudge', due || Boolean(cloud.getSession()));
 }
 
 /* ---------- 分享今天 ---------- */
@@ -879,6 +884,129 @@ function bindSettings() {
   });
 }
 
+/* ---------- 帳號與雲端同步 ---------- */
+
+const sync = initSync({
+  getEntries: () => state.entries,
+  setEntries(entries) {
+    state.entries = entries;
+    persist();
+    // 正在輸入時不要重畫今日頁，以免游標跳走
+    if (!textareas.includes(document.activeElement)) renderToday();
+    renderStats();
+    if (!$('view-calendar').hidden) renderCalendar();
+  },
+  getBoards: () => boards.getBoards(),
+  setBoards(list) {
+    boards.setBoards(list);
+    if (!$('view-dreams').hidden) boards.show();
+  },
+  getTags: () => state.tagList,
+  setTags(tags) {
+    state.tagList = tags;
+    saveTagList(tags);
+    renderTagManage();
+    renderTagRows();
+  },
+  beforeSync: flushSave,
+  onPhotosArrived() {
+    if (!$('view-dreams').hidden) boards.show();
+  },
+  onStatus: renderCloud,
+});
+
+function renderCloud() {
+  const panel = $('cloud-panel');
+  if (!cloud.cloudConfigured()) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const session = cloud.getSession();
+  $('cloud-out').hidden = Boolean(session);
+  $('cloud-in').hidden = !session;
+  if (!session) {
+    if (!$('view-data').hidden) showGoogleButton();
+    return;
+  }
+  $('cloud-email').textContent = session.user.email || session.user.name || '已登入';
+  const st = sync.status;
+  const text =
+    st.state === 'syncing'
+      ? '同步中⋯⋯'
+      : st.state === 'error'
+        ? `同步失敗：${st.error}。有網路時會自動再試。`
+        : st.lastSyncAt
+          ? `上次同步：${formatTime(st.lastSyncAt)}`
+          : '尚未同步';
+  $('cloud-status').textContent = text;
+  $('cloud-sync').disabled = st.state === 'syncing';
+}
+
+let buttonShown = false;
+async function showGoogleButton() {
+  if (buttonShown) return;
+  buttonShown = true;
+  const err = $('cloud-error');
+  err.hidden = true;
+  try {
+    await cloud.renderGoogleButton($('gsi-button'), {
+      dark: (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark',
+      onSignedIn: afterSignIn,
+      onError: (e) => {
+        err.textContent = `登入失敗：${e.message}`;
+        err.hidden = false;
+      },
+    });
+  } catch (e) {
+    buttonShown = false;
+    err.textContent = e.message;
+    err.hidden = false;
+  }
+}
+
+async function afterSignIn(session) {
+  buttonShown = false;
+  toast(`已登入 ${session.user.email}，正在同步⋯⋯`);
+  renderCloud();
+  updateBackupNudge();
+  await sync.syncNow();
+  if (sync.status.state === 'ok') toast('同步完成，日記已存到雲端');
+}
+
+function bindCloud() {
+  $('cloud-sync').addEventListener('click', async () => {
+    await sync.syncNow();
+    if (sync.status.state === 'ok') toast('同步完成');
+  });
+  $('cloud-signout').addEventListener('click', async () => {
+    if (!window.confirm('確定要登出嗎？這台裝置上的日記會保留，但之後的變動不會再同步到雲端。')) return;
+    await cloud.signOut();
+    sync.reset();
+    renderCloud();
+    updateBackupNudge();
+    toast('已登出');
+  });
+  $('cloud-delete').addEventListener('click', async () => {
+    if (!window.confirm('確定要刪除帳號嗎？雲端上的日記、願景板與照片會全部刪除，無法復原。\n這台裝置上的資料會保留。')) return;
+    const btn = $('cloud-delete');
+    btn.disabled = true;
+    try {
+      await cloud.deleteAccount();
+      sync.reset();
+      toast('已刪除帳號與雲端資料');
+    } catch (e) {
+      toast(`刪除失敗：${e.message}`);
+    } finally {
+      btn.disabled = false;
+      renderCloud();
+      updateBackupNudge();
+    }
+  });
+  renderCloud();
+  if (cloud.getSession()) sync.syncNow();
+}
+
 const NOTE_SNOOZE_DAYS = 7;
 
 function bindBackupAndShare() {
@@ -920,6 +1048,7 @@ function init() {
   }
   bindSettings();
   bindTags();
+  bindCloud();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }

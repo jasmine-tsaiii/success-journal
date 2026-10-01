@@ -7,7 +7,7 @@ const W = 1080;
 const H = 1920;
 const M = 84;
 const C = { bg: '#F3EBDF', paper: '#FAF5EC', ink: '#2E2520', ink2: '#4E4239', muted: '#74655A', rule: '#D6C8B6', accent: '#A85A38' };
-export const SITE_URL = 'jasmine-tsaiii.github.io/success-journal';
+export const SITE_URL = 'success.jas-soul.com';
 
 const isMobile = () => window.matchMedia('(pointer: coarse)').matches;
 

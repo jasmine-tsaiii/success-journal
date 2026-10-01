@@ -3,7 +3,7 @@
 願景板拼貼 × 成功日記：把想要的生活放在眼前，再每天記錄 3 件往前的成功小事，搭配溫柔的肯定語。
 為 Jasmine（天使靈氣與脈輪解讀療癒師）的客人與學員設計的手機網頁 App（PWA），可以加到手機主畫面、離線使用。
 
-網址（啟用 GitHub Pages 後）：`https://<你的 GitHub 帳號>.github.io/success-journal/`
+網址：<https://success.jas-soul.com/>
 
 ## 功能
 
@@ -22,11 +22,12 @@
 - **成功類型統計**：回顧頁依本週／本月／今年／全部，以橫條圖顯示各標籤的件數與比例、最多的是哪一類，並附近 4 個月的每月表格。
 - **每日色彩與肯定語**：靈感來自七大脈輪，依星期輪替（週一海底輪・紅 … 週日頂輪・紫）。今日頁以肯定語為主角，脈輪名稱以小字呈現，可在「設定」中關閉，只保留色彩與肯定語。每個脈輪有 6 句肯定語、3 個引導問題，隨週次輪替。
 - **月曆回顧**：有紀錄的日子以當天的色彩圓點標記，點選可看當天內容並進入編輯；顯示連續記錄天數、累積成功件數、已記錄天數與最長連續紀錄。
+- **會員與雲端同步（選用）**：在「設定 → 帳號與雲端同步」用 Google 帳號登入後，日記、標籤、願景板與照片會自動同步到雲端（Supabase），換手機登入同一個帳號就能找回。兩台裝置改到同一天時，以最後修改的為準。不登入也能照常使用。可以隨時登出（本機資料保留）或刪除帳號與雲端資料。
 - **分享今天的小成功**：寫下成功後，可一鍵做成 IG 限時動態尺寸（1080 × 1920）的卡片，含日期、三件成功、肯定語與當日色彩。手機上開啟分享選單（可直接分享到 IG、LINE 或存到相簿），電腦上直接下載。
 - **新手引導**：第一次開啟時以 3 個畫面介紹寫法、願景板與加到主畫面的方法（依 iPhone／Android 顯示對應步驟），可略過；已有紀錄的使用者不會看到。
-- **備份提醒**：記錄滿 3 天還沒備份、或距離上次備份超過 14 天時，首頁會出現小提醒，按「立即備份」就能存到雲端（手機上開啟分享選單，可選 iCloud 雲碟、Google 雲端硬碟、LINE 傳給自己）；按 × 會在 3 天後再提醒。設定頁顯示上次備份日期。
+- **備份提醒**：沒有登入時，記錄滿 3 天還沒備份、或距離上次備份超過 14 天時，首頁會出現小提醒，按「立即備份」就能存到雲端（手機上開啟分享選單，可選 iCloud 雲碟、Google 雲端硬碟、LINE 傳給自己）；按 × 會在 3 天後再提醒。設定頁顯示上次備份日期。
 - **備份與還原**：下載 JSON 備份檔（含日記、願景板與照片）、從備份檔還原（同日期、同一個願景板以備份檔為準，其他保留；舊版備份檔也能匯入），以及匯出易讀的文字檔。有照片時備份檔會比較大（每張照片約數百 KB）。
-- **隱私**：不需帳號，日記與願景板版面存在瀏覽器的 localStorage，照片存在 IndexedDB，都不傳送到任何伺服器，也不載入任何外部資源。首頁附有說明，提醒換手機前先備份。
+- **隱私**：不需帳號也能使用；沒有登入時，日記與願景板版面存在瀏覽器的 localStorage，照片存在 IndexedDB，都不傳送到任何伺服器。只有在設定頁按 Google 登入時才會載入 Google 的登入元件。隱私權政策在 `app/privacy.html`。
 - **PWA**：manifest、Service Worker、App 圖示；加到主畫面後可離線開啟。
 
 文案僅作為自我覺察與書寫練習的陪伴，不涉及任何醫療或療效宣稱（「設定 → 關於」附有一句簡短聲明）。
@@ -46,6 +47,11 @@ app/                    ← 實際部署的靜態網站
   js/board-ui.js        願景板編輯器（點格子加照片、手勢、版型、色調、文字、素材、存圖）
   js/images.js          照片壓縮與 IndexedDB 儲存
   js/share.js           分享卡片繪製、分享／下載檔案（含備份）
+  js/config.js          Supabase 網址、publishable key、Google Client ID（都是可公開的值）
+  js/cloud.js           Google 登入、與 Supabase 溝通（日記文件、照片、刪除帳號）
+  js/sync.js            雲端同步流程（自動在背景同步）
+  js/sync-core.js       同步的比對邏輯（純邏輯，有單元測試）
+  privacy.html          隱私權政策
   js/stickers.js        內建素材（SVG，依色調換色）與文字靈感
   fonts/                內建字型（思源宋體常用字子集、Cormorant Garamond）
   sw.js                 Service Worker（離線快取）
@@ -56,6 +62,7 @@ scripts/make-icons.mjs  產生 App 圖示（米色底＋印章「成」）
 scripts/make-og.mjs     產生社群分享預覽圖
 scripts/make-fonts.py   產生內建字型子集
 .github/workflows/      自動部署與測試
+supabase/schema.sql     Supabase 資料表、權限與照片空間（在 SQL Editor 執行）
 ```
 
 所有路徑都是相對路徑，因此部署在 `/success-journal/` 子路徑或任何其他路徑都能運作。
@@ -69,6 +76,16 @@ scripts/make-fonts.py   產生內建字型子集
    也可以在 Actions 分頁手動執行（Run workflow）重新部署。
 
 > 若 repository 是私人的，GitHub Pages 需要付費方案；公開的 repository 可免費使用。
+
+## 會員與雲端同步的設定
+
+1. **Supabase**：建立專案後，到 SQL Editor 執行 `supabase/schema.sql`（建立 `journal_docs` 資料表、每人只能讀寫自己資料的權限、刪除帳號功能，以及不公開的 `photos` 照片空間）。
+2. **Google Cloud**：建立 OAuth 用戶端（網頁應用程式），「已授權的 JavaScript 來源」加入網站網址（例如 `https://success.jas-soul.com`）與 `http://localhost:8080`。
+3. **Supabase → Authentication → Sign In / Providers → Google**：開啟並填入 Client ID 與 Client Secret。
+4. 把 Supabase 網址、publishable key 與 Google Client ID 填進 `app/js/config.js`。**secret／service_role key 絕對不要放進程式碼。**
+
+登入使用 Google 官方的登入按鈕，直接在我們的網頁取得 Google 憑證再交給 Supabase，所以 Google 授權畫面顯示的是我們的網址，不是 Supabase 的網址。
+在 Google Cloud 的「品牌」頁填好應用程式名稱、logo（`app/icons/google-logo-120.png`）、首頁與隱私權政策網址（`https://success.jas-soul.com/privacy.html`）並通過品牌驗證後，授權畫面會顯示「成功日記」。
 
 ## 加到手機主畫面
 
@@ -86,7 +103,7 @@ scripts/make-fonts.py   產生內建字型子集
 
 ### 給客人與學員的提醒
 
-- 資料只存在自己的手機瀏覽器中，Jasmine 看不到，也無法幫忙找回。
+- 沒有登入時，資料只存在自己的手機瀏覽器中，無法幫忙找回；建議用 Google 帳號登入，自動同步到雲端。
 - 換手機、清除瀏覽器資料或刪除 App 前，請先到「設定」頁按「立即備份」（建議存到雲端硬碟或寄給自己），到新手機後再「從備份檔還原」。
 - 在 iPhone 上，從主畫面開啟的 App 和在 Safari 中開啟的網頁，資料是分開存放的，建議固定用主畫面的 App 書寫。
 

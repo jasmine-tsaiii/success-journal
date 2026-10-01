@@ -1,4 +1,7 @@
-// 本機儲存：所有資料只寫入此裝置瀏覽器的 localStorage，不傳送到任何伺服器。
+// 本機儲存：資料寫入此裝置瀏覽器的 localStorage。
+// 登入雲端同步時，sync.js 會在收到 sj:changed 事件後把變動上傳。
+
+export const notifyChanged = () => window.dispatchEvent(new Event('sj:changed'));
 
 const KEY = 'success-journal.entries.v1';
 
@@ -26,6 +29,7 @@ export function loadEntries() {
 
 export function saveEntries(entries) {
   localStorage.setItem(KEY, JSON.stringify(entries));
+  notifyChanged();
 }
 
 const BOARDS_KEY = 'success-journal.boards.v1';
@@ -51,6 +55,7 @@ export function loadBoards() {
 
 export function saveBoards(boards) {
   localStorage.setItem(BOARDS_KEY, JSON.stringify(boards));
+  notifyChanged();
 }
 
 /** 標籤清單（null 表示尚未設定，使用預設標籤） */
@@ -62,6 +67,7 @@ export function loadTagList(defaults) {
 export function saveTagList(tags) {
   try {
     localStorage.setItem(TAGS_KEY, JSON.stringify(tags));
+    notifyChanged();
   } catch {
     /* 忽略 */
   }

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "npx --yes serve app -l 8080",
-    "test": "node --test tests/core.test.mjs tests/board.test.mjs",
+    "test": "node --test tests/core.test.mjs tests/board.test.mjs tests/sync.test.mjs",
     "test:e2e": "node --test tests/e2e.test.mjs",
     "icons": "node scripts/make-icons.mjs",
     "og": "node scripts/make-og.mjs",
