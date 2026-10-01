@@ -16,6 +16,7 @@ import {
   monthGrid,
   parseBackup,
   todayKey,
+  weekdayIndex,
 } from './core.js';
 import { isStorageAvailable, loadEntries, loadSettings, requestPersistence, saveEntries, saveSettings } from './storage.js';
 import { initBoards } from './board-ui.js';
@@ -75,8 +76,31 @@ function download(filename, content, type) {
 }
 
 function applyChakraTheme(el, chakra) {
-  el.style.setProperty('--chakra', chakra.color);
-  el.style.setProperty('--chakra-soft', chakra.soft);
+  el.style.setProperty('--day', chakra.color);
+}
+
+const WEEK_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEK_ZH = ['一', '二', '三', '四', '五', '六', '日'];
+
+/** 2026-10-01 → 2026.10.01 */
+const dotDate = (key) => key.replaceAll('-', '.');
+
+/** 一年中的第幾天，當作刊號 */
+function dayOfYear(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 0)) / 86400000);
+}
+
+/* ---------- 外觀 ---------- */
+
+const THEME_COLORS = { light: '#F3EBDF', dark: '#1D2238' };
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  if (theme === 'light' || theme === 'dark') root.dataset.theme = theme;
+  else delete root.dataset.theme;
+  const dark = theme === 'dark' || (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? THEME_COLORS.dark : THEME_COLORS.light);
 }
 
 /* ---------- 分頁 ---------- */
@@ -105,7 +129,10 @@ function renderToday() {
   const today = todayKey();
   const { chakra, prompt, affirmation } = chakraForDate(key);
 
-  $('current-date-text').textContent = formatDateZh(key);
+  $('current-date-text').textContent = dotDate(key);
+  $('current-week').textContent = `${WEEK_EN[weekdayIndex(key)]} · 週${WEEK_ZH[weekdayIndex(key)]}`;
+  $('date-picker').setAttribute('aria-label', `選擇日期，目前為 ${formatDateZh(key)}`);
+  $('issue-no').textContent = `No.${String(dayOfYear(key)).padStart(3, '0')}`;
   $('date-picker').value = key;
   $('date-picker').max = today;
   $('go-today').hidden = key === today;
@@ -113,7 +140,7 @@ function renderToday() {
 
   applyChakraTheme(document.body, chakra);
   const showChakra = state.settings.showChakra;
-  $('chakra-en').textContent = key === today ? "Today's Affirmation" : 'Affirmation of the Day';
+  $('chakra-en').textContent = key === today ? 'Affirmation' : 'Affirmation of the Day';
   $('chakra-name').textContent = showChakra ? chakra.name : '';
   $('chakra-name').hidden = !showChakra;
   $('chakra-sep').hidden = !showChakra;
@@ -199,7 +226,7 @@ function renderCalendar() {
   }
   const { y, m } = state.month;
   $('month-title').textContent = `${y} 年 ${m} 月`;
-  $('month-en').textContent = `${MONTHS_EN[m - 1]} ${y}`;
+  $('month-en').textContent = MONTHS_EN[m - 1];
   const [ty, tm] = today.split('-').map(Number);
   $('next-month').disabled = y > ty || (y === ty && m >= tm);
 
@@ -258,14 +285,14 @@ function renderDayDetail() {
   el.textContent = '';
 
   const eyebrow = document.createElement('p');
-  eyebrow.className = 'eyebrow';
-  eyebrow.textContent = state.settings.showChakra ? chakra.en : 'Little Wins';
+  eyebrow.className = 'label-caps';
+  eyebrow.textContent = dotDate(key);
   const h = document.createElement('h2');
   h.className = 'section-title';
   h.textContent = formatDateZh(key);
   const meta = document.createElement('p');
   meta.className = 'chakra-meta';
-  meta.innerHTML = '<span class="chakra-dot"></span>';
+  meta.innerHTML = '<span class="swatch"></span>';
   meta.append(state.settings.showChakra ? `${chakra.name}・${chakra.colorName}` : `今日色彩・${chakra.colorName}`);
   el.append(eyebrow, h, meta);
 
@@ -280,13 +307,13 @@ function renderDayDetail() {
     el.appendChild(ol);
   } else {
     const p = document.createElement('p');
-    p.className = 'hint';
+    p.className = 'small';
     p.textContent = '這一天還沒有紀錄。想補寫的話，隨時都可以。';
     el.appendChild(p);
   }
   const aff = document.createElement('p');
-  aff.className = 'affirmation-text small-aff';
-  aff.textContent = affirmation;
+  aff.className = 'detail-affirmation';
+  aff.textContent = `「${affirmation}」`;
   el.appendChild(aff);
 
   const edit = document.createElement('button');
@@ -337,7 +364,7 @@ async function exportJson() {
   const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images });
   download(`success-journal-backup-${stamp()}.json`, JSON.stringify(backup), 'application/json');
   const days = Object.keys(backup.entries).length;
-  toast(`已下載備份檔（${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個夢想板` : ''}）`);
+  toast(`已下載備份檔（${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個願景板` : ''}）`);
 }
 
 function exportText() {
@@ -364,9 +391,9 @@ async function importJson(file) {
   const existingIds = new Set(boards.getBoards().map((b) => b.id));
   const boardOverlap = parsed.boards.filter((b) => existingIds.has(b.id)).length;
   const msg =
-    `備份檔中有 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個夢想板` : ''}。` +
+    `備份檔中有 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個願景板` : ''}。` +
     (overlap ? `\n其中 ${overlap} 天與這台裝置上的紀錄日期相同，將以備份檔內容覆蓋。` : '') +
-    (boardOverlap ? `\n其中 ${boardOverlap} 個夢想板已存在，將以備份檔內容覆蓋。` : '') +
+    (boardOverlap ? `\n其中 ${boardOverlap} 個願景板已存在，將以備份檔內容覆蓋。` : '') +
     '\n確定要匯入嗎？';
   if (!window.confirm(msg)) return;
   flushSave();
@@ -383,10 +410,10 @@ async function importJson(file) {
     try {
       boards.setBoards(mergeBoards(boards.getBoards(), parsed.boards));
     } catch {
-      toast('夢想板匯入失敗：此裝置的儲存空間可能已滿。');
+      toast('願景板匯入失敗：此裝置的儲存空間可能已滿。');
       return;
     }
-    toast(`已匯入 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個夢想板` : ''}`);
+    toast(`已匯入 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個願景板` : ''}`);
     renderToday();
     renderStats();
   }
@@ -471,6 +498,19 @@ function bind() {
 const boards = initBoards({ toast, stamp });
 
 function bindSettings() {
+  const theme = state.settings.theme || 'auto';
+  document.querySelectorAll('input[name="theme"]').forEach((r) => {
+    r.checked = r.value === theme;
+    r.addEventListener('change', () => {
+      state.settings = { ...state.settings, theme: r.value };
+      saveSettings(state.settings);
+      applyTheme(r.value);
+      if (!$('view-dreams').hidden) boards.show();
+    });
+  });
+  applyTheme(theme);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(state.settings.theme || 'auto'));
+
   const box = $('setting-chakra');
   box.checked = state.settings.showChakra;
   box.addEventListener('change', () => {

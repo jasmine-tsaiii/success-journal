@@ -1,74 +1,112 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  BACKGROUNDS,
   BOARD_H,
   BOARD_W,
-  LAYOUTS,
-  autoLayout,
-  backgroundCss,
+  DEFAULT_PALETTE,
+  PALETTES,
+  TEMPLATES,
+  applyTemplate,
   clampItem,
   createBoard,
   estimateMeasure,
-  itemHeight,
+  estimateTextLayout,
+  fillSlots,
+  isEmptySlot,
+  itemSize,
+  migrateBoard,
+  paletteById,
   placeNew,
+  resolveColor,
   sanitizeBoard,
+  scaleItem,
   usedImageIds,
+  verticalColumns,
   wrapText,
 } from '../app/js/board-core.js';
-import { STICKERS, WORD_IDEAS } from '../app/js/stickers.js';
+import { STICKERS, stickerSvg, WORD_IDEAS } from '../app/js/stickers.js';
 import { buildBackup, buildTextExport, mergeBoards, parseBackup } from '../app/js/core.js';
 
-const photo = (id, aspect = 1.5) => ({ id, type: 'photo', imageId: `img-${id}`, aspect, frame: true, x: 0, y: 0, w: 400, rot: 0, z: 0 });
-const text = (id, t = '自由') => ({ id, type: 'text', text: t, style: 'card', x: 0, y: 0, w: 400, rot: 0, z: 0 });
-const sticker = (id) => ({ id, type: 'sticker', sticker: 'star', x: 0, y: 0, w: 200, rot: 0, z: 0 });
+const NOW = new Date('2026-10-01T09:00:00');
+const photo = (n) => ({ imageId: `img-${n}`, aspect: 1.5 });
 
-function sample(n) {
-  const items = [];
-  for (let i = 0; i < n; i++) items.push(i % 3 === 2 ? text(`t${i}`, '一步一步，我正在靠近夢想') : photo(`p${i}`, i % 2 ? 0.75 : 1.4));
-  items.push(sticker('s1'), sticker('s2'));
-  return items;
-}
+test('色調：淺色 6 種（米色底）、深色 4 種（夜空底、星點）', () => {
+  const light = PALETTES.filter((p) => !p.dark);
+  const dark = PALETTES.filter((p) => p.dark);
+  assert.equal(light.length, 6);
+  assert.equal(dark.length, 4);
+  assert.ok(light.every((p) => p.bg === '#F3EBDF'));
+  assert.ok(dark.every((p) => p.stars));
+  assert.equal(new Set(PALETTES.map((p) => p.id)).size, PALETTES.length);
+  assert.equal(paletteById('nope').id, PALETTES[0].id);
+  assert.equal(paletteById('night').id, 'starry'); // 舊版背景
+  const rose = paletteById('rose');
+  assert.equal(resolveColor('accent', rose), rose.accent);
+  assert.equal(resolveColor(undefined, rose), rose.ink);
+});
 
-test('自動排版：每種版型都把物件的中心放在畫面內，且保留所有物件', () => {
-  for (const { id: layout } of LAYOUTS) {
-    for (const n of [1, 2, 3, 5, 8, 12]) {
-      const items = sample(n);
-      const out = autoLayout(items, { layout, seed: 42 });
-      assert.equal(out.length, items.length, `${layout}/${n}`);
-      assert.deepEqual(new Set(out.map((it) => it.id)), new Set(items.map((it) => it.id)));
-      for (const it of out) {
-        assert.ok(it.x >= 0 && it.x <= BOARD_W && it.y >= 0 && it.y <= BOARD_H, `${layout}/${n} 超出畫面`);
-        assert.ok(it.w > 50 && Number.isFinite(it.rot));
-      }
-      // 素材貼紙在最上層
-      const maxMain = Math.max(...out.filter((it) => it.type !== 'sticker').map((it) => it.z));
-      assert.ok(out.filter((it) => it.type === 'sticker').every((it) => it.z > maxMain));
+test('新的願景板：預設封面版型、霧粉色調，有可以點的照片格', () => {
+  const b = createBoard(undefined, { now: NOW });
+  assert.equal(b.template, 'cover');
+  assert.equal(b.palette, DEFAULT_PALETTE);
+  assert.equal(b.items.filter(isEmptySlot).length, 1);
+  assert.equal(b.items.find((it) => it.role === 'title').text, '2027 的我');
+});
+
+test('每個版型的物件都在畫面內，且照片格數量正確', () => {
+  const slots = { cover: 1, grid: 6, editorial: 3 };
+  for (const t of TEMPLATES) {
+    const b = createBoard('x', { template: t.id, now: NOW });
+    assert.equal(b.items.filter(isEmptySlot).length, slots[t.id], t.id);
+    for (const it of b.items) {
+      const { w, h } = itemSize(it);
+      assert.ok(it.x - w / 2 >= -1 && it.x + w / 2 <= BOARD_W + 1, `${t.id}/${it.role} 超出左右`);
+      assert.ok(it.y - h / 2 >= -1 && it.y + h / 2 <= BOARD_H + 1, `${t.id}/${it.role} 超出上下`);
     }
+    assert.ok(b.items.filter((it) => it.type === 'shape').every((it) => it.locked));
   }
 });
 
-test('自動排版：同一個 seed 結果相同，不同 seed 會換一種排法', () => {
-  const items = sample(6);
-  assert.deepEqual(autoLayout(items, { seed: 7 }), autoLayout(items, { seed: 7 }));
-  assert.notDeepEqual(autoLayout(items, { seed: 7 }), autoLayout(items, { seed: 8 }));
+test('照片依序放進空白格，指定的格子優先；放不下的回傳', () => {
+  const b = createBoard('x', { template: 'grid', now: NOW });
+  const target = b.items.filter(isEmptySlot)[3];
+  const rest = fillSlots(b, [photo(1), photo(2)], target.id);
+  assert.deepEqual(rest, []);
+  assert.equal(target.imageId, 'img-1');
+  assert.equal(b.items.filter(isEmptySlot).length, 4);
+  const cover = createBoard('x', { now: NOW });
+  assert.equal(fillSlots(cover, [photo(1), photo(2), photo(3)]).length, 2);
 });
 
-test('整齊網格：物件之間不重疊，也不會超出上下邊界', () => {
-  const out = autoLayout(sample(9), { layout: 'grid', seed: 3 }).filter((it) => it.type !== 'sticker');
-  const boxes = out.map((it) => {
-    const h = itemHeight(it);
-    return { l: it.x - it.w / 2, r: it.x + it.w / 2, t: it.y - h / 2, b: it.y + h / 2 };
-  });
-  for (const b of boxes) assert.ok(b.t >= 0 && b.b <= BOARD_H + 1);
-  for (let i = 0; i < boxes.length; i++) {
-    for (let j = i + 1; j < boxes.length; j++) {
-      const a = boxes[i];
-      const c = boxes[j];
-      const overlap = a.l < c.r - 1 && c.l < a.r - 1 && a.t < c.b - 1 && c.t < a.b - 1;
-      assert.ok(!overlap, `第 ${i} 與第 ${j} 個物件重疊`);
-    }
-  }
+test('換版型：照片搬進新格子，只保留改過的文字，自己加的物件保留', () => {
+  const b = createBoard('x', { template: 'grid', now: NOW });
+  fillSlots(b, [1, 2, 3, 4].map(photo));
+  const title = b.items.find((it) => it.role === 'title');
+  Object.assign(title, { text: '我的 2027', edited: true });
+  b.items.push({ id: 'mine', type: 'sticker', sticker: 'leaf', x: 100, y: 100, w: 200, rot: 0, z: 99 });
+
+  const items = applyTemplate(b, 'editorial', { now: NOW });
+  const slots = items.filter((it) => it.tpl && it.type === 'photo');
+  assert.deepEqual(slots.map((s) => s.imageId), ['img-1', 'img-2', 'img-3']);
+  // 第 4 張照片放不下：縮小放在旁邊
+  const spill = items.filter((it) => !it.tpl && it.type === 'photo');
+  assert.deepEqual(spill.map((s) => s.imageId), ['img-4']);
+  // 直書標題不被橫書標題取代
+  assert.equal(items.find((it) => it.role === 'title').style, 'vertical');
+  assert.ok(items.some((it) => it.id === 'mine'));
+
+  const back = applyTemplate({ ...b, items }, 'cover', { now: NOW });
+  assert.equal(back.filter((it) => it.type === 'photo' && it.imageId).length, 4);
+  // 沒改過的版型文字不會被帶到別的版型
+  const coverDefault = createBoard('x', { now: NOW }).items.find((it) => it.role === 'li1').text;
+  assert.equal(back.find((it) => it.role === 'li1').text, coverDefault);
+});
+
+test('換版型時，使用者改過的標題會保留', () => {
+  const b = createBoard('x', { now: NOW });
+  Object.assign(b.items.find((it) => it.role === 'title'), { text: '溫柔的一年', edited: true });
+  const items = applyTemplate(b, 'grid', { now: NOW });
+  assert.equal(items.find((it) => it.role === 'title').text, '溫柔的一年');
 });
 
 test('文字換行：中文逐字、英文單字不拆開、保留換行', () => {
@@ -79,34 +117,59 @@ test('文字換行：中文逐字、英文單字不拆開、保留換行', () =>
   assert.ok(wrapText('supercalifragilistic', 30, measure).every((l) => measure(l) <= 30));
 });
 
-test('物件操作：新增、限制範圍', () => {
-  const board = createBoard();
-  const a = placeNew(board, { type: 'sticker', sticker: 'star' }, () => 0.5);
-  assert.equal(a.x, BOARD_W / 2);
-  assert.equal(a.z, 1);
-  board.items.push(a);
-  assert.equal(placeNew(board, { type: 'text', text: 'x' }).z, 2);
-  const c = clampItem({ x: -50, y: 99999, w: 1, rot: 370 });
-  assert.deepEqual([c.x, c.y, c.w, Math.round(c.rot)], [0, BOARD_H, 90, 10]);
+test('直書：依欄高分欄，寬度由欄數決定', () => {
+  assert.deepEqual(verticalColumns('溫柔而堅定地\n生活', 30, 10, 0), ['溫柔而', '堅定地', '生活']);
+  const t = estimateTextLayout({ type: 'text', style: 'vertical', text: '一二三四\n五', fs: 50, h: 1000, w: 10 });
+  assert.equal(t.columns.length, 2);
+  assert.equal(t.w, 2 * t.lineHeight);
 });
 
-test('背景、素材與文字靈感', () => {
-  assert.ok(BACKGROUNDS.length >= 5);
-  for (const bg of BACKGROUNDS) assert.match(backgroundCss(bg), /linear-gradient/);
-  assert.ok(STICKERS.length >= 12);
+test('縮放時照片框與字級等比例，位置限制在畫面內', () => {
+  const big = scaleItem({ type: 'photo', w: 400, h: 300, x: 1, y: 1, rot: 0 }, 2);
+  assert.deepEqual([big.w, big.h], [800, 600]);
+  const text = scaleItem({ type: 'text', w: 400, fs: 40, x: 1, y: 1, rot: 0 }, 0.5);
+  assert.equal(text.fs, 20);
+  const c = clampItem({ x: -50, y: 99999, w: 1, rot: 370 });
+  assert.deepEqual([c.x, c.y, c.w, Math.round(c.rot)], [0, BOARD_H, 60, 10]);
+  const b = createBoard();
+  assert.equal(placeNew(b, { type: 'sticker', sticker: 'leaf' }).z, Math.max(...b.items.map((i) => i.z)) + 1);
+});
+
+test('素材：id 不重複、SVG 依色調換色、印章含文字', () => {
+  assert.ok(STICKERS.length >= 14);
   assert.equal(new Set(STICKERS.map((s) => s.id)).size, STICKERS.length);
-  for (const s of STICKERS) assert.match(s.svg, /^<svg[^>]+viewBox="0 0 100 100"/);
+  const rose = paletteById('rose');
+  for (const s of STICKERS) {
+    if (s.kind === 'stamp') {
+      assert.ok(s.ring && s.center, s.id);
+      continue;
+    }
+    const out = stickerSvg(s, rose);
+    assert.ok(!/\{(accent|ink|block|tape|bg)\}/.test(out), s.id);
+    assert.match(out, /^<svg[^>]+viewBox=/);
+  }
   assert.ok(WORD_IDEAS.length >= 10);
 });
 
-test('夢想板備份：照片、版面可來回轉換；不合法的內容會被濾掉', () => {
-  const board = { ...createBoard('2027'), items: [photo('a'), text('b', '旅行'), sticker('c')] };
+test('舊版願景板會轉換成新格式', () => {
+  const old = { id: 'b1', title: '舊的', background: 'sunset', items: [{ id: 's', type: 'sticker', sticker: 'lotus', x: 1, y: 1, w: 100, rot: 0, z: 1 }] };
+  const m = migrateBoard(old);
+  assert.equal(m.palette, 'terracotta');
+  assert.equal(m.items[0].sticker, 'flower');
+  assert.equal(migrateBoard(m), m);
+});
+
+test('願景板備份：照片、版型、色調可來回轉換；不合法的內容會被濾掉', () => {
+  const board = createBoard('2027', { template: 'editorial', palette: 'nebula', now: NOW });
+  fillSlots(board, [photo('a')]);
   const images = { 'img-a': { data: 'data:image/jpeg;base64,AAAA', width: 300, height: 200 } };
-  const json = JSON.stringify(buildBackup({}, new Date(), { boards: [board], images }));
-  const parsed = parseBackup(json);
+  const parsed = parseBackup(JSON.stringify(buildBackup({}, NOW, { boards: [board], images })));
   assert.equal(parsed.boards.length, 1);
-  assert.equal(parsed.boards[0].items.length, 3);
-  assert.equal(parsed.boards[0].title, '2027');
+  const back = parsed.boards[0];
+  assert.equal(back.template, 'editorial');
+  assert.equal(back.palette, 'nebula');
+  assert.equal(back.items.length, board.items.length);
+  assert.equal(back.items.filter(isEmptySlot).length, 2);
   assert.deepEqual(parsed.images, images);
 
   const bad = parseBackup(
@@ -115,7 +178,17 @@ test('夢想板備份：照片、版面可來回轉換；不合法的內容會�
       version: 2,
       entries: {},
       boards: [
-        { id: 'x', items: [{ type: 'evil', x: 1 }, { type: 'text', text: '  ' }, { type: 'photo', imageId: 'i', x: 'NaN', w: 1e9 }], background: 'nope' },
+        {
+          id: 'x',
+          background: 'night',
+          items: [
+            { type: 'evil', x: 1 },
+            { type: 'text', text: '  ', style: 'nope' },
+            { type: 'photo', imageId: 'i', x: 'NaN', w: 1e9 },
+            { type: 'photo', imageId: null },
+            { type: 'shape', color: 'red', h: -5 },
+          ],
+        },
         { items: [] },
         'junk',
       ],
@@ -123,10 +196,14 @@ test('夢想板備份：照片、版面可來回轉換；不合法的內容會�
     }),
   );
   assert.equal(bad.boards.length, 1);
-  assert.equal(bad.boards[0].background, 'cream');
-  assert.equal(bad.boards[0].items.length, 1);
-  assert.equal(bad.boards[0].items[0].x, BOARD_W / 2);
-  assert.ok(bad.boards[0].items[0].w <= 2400);
+  const items = bad.boards[0].items;
+  assert.equal(bad.boards[0].palette, 'starry');
+  assert.deepEqual(items.map((i) => i.type), ['text', 'photo', 'shape']);
+  assert.equal(items[0].style, 'body');
+  assert.equal(items[1].x, BOARD_W / 2);
+  assert.ok(items[1].w <= 2400);
+  assert.equal(items[2].color, 'block');
+  assert.ok(items[2].locked);
   assert.deepEqual(Object.keys(bad.images), ['j']);
 });
 
@@ -137,10 +214,12 @@ test('舊版（v1）備份仍可匯入', () => {
   assert.deepEqual(parsed.boards, []);
 });
 
-test('合併夢想板與文字匯出', () => {
+test('合併願景板與文字匯出', () => {
   const merged = mergeBoards([{ id: 'a', v: 1 }, { id: 'b', v: 1 }], [{ id: 'b', v: 2 }, { id: 'c', v: 2 }]);
   assert.deepEqual(merged.map((b) => `${b.id}${b.v}`), ['a1', 'b2', 'c2']);
-  assert.deepEqual(usedImageIds([{ items: [photo('a'), photo('a'), text('t')] }]), ['img-a']);
-  const txt = buildTextExport({}, [{ title: '2027 夢想', items: [text('t', '去京都旅行')] }]);
-  assert.match(txt, /夢想板[\s\S]*2027 夢想\n {2}・去京都旅行/);
+  const b = createBoard('2027 願景', { now: NOW });
+  fillSlots(b, [photo('a')]);
+  assert.deepEqual(usedImageIds([b, b]), ['img-a']);
+  const txt = buildTextExport({}, [b]);
+  assert.match(txt, /願景板[\s\S]*2027 願景\n[\s\S]*・2027 的我/);
 });

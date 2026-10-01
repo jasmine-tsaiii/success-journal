@@ -42,7 +42,7 @@ function loadJson(key, fallback) {
   }
 }
 
-/** 夢想板版面（照片本身存在 IndexedDB，見 images.js） */
+/** 願景板版面（照片本身存在 IndexedDB，見 images.js） */
 export function loadBoards() {
   const data = loadJson(BOARDS_KEY, []);
   return Array.isArray(data) ? data : [];
@@ -52,7 +52,7 @@ export function saveBoards(boards) {
   localStorage.setItem(BOARDS_KEY, JSON.stringify(boards));
 }
 
-export const DEFAULT_SETTINGS = { showChakra: true };
+export const DEFAULT_SETTINGS = { showChakra: true, theme: 'auto' };
 
 export function loadSettings() {
   return { ...DEFAULT_SETTINGS, ...loadJson(SETTINGS_KEY, {}) };

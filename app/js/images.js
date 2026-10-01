@@ -1,4 +1,4 @@
-// 夢想板照片：壓縮後存在此裝置的 IndexedDB，不會上傳。
+// 願景板照片：壓縮後存在此裝置的 IndexedDB，不會上傳。
 
 const DB_NAME = 'success-journal';
 const STORE = 'images';
