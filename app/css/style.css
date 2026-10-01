@@ -1880,3 +1880,70 @@ textarea:focus {
   width: auto;
   padding: 11px 28px;
 }
+
+/* ---------- 帳號與雲端同步 ---------- */
+
+.nudge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.panel a,
+.note-card a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+.gsi-slot {
+  min-height: 44px;
+  margin: 18px 0 10px;
+  max-width: 320px;
+}
+
+.cloud-error {
+  color: #b0412e;
+}
+
+:root[data-theme='dark'] .cloud-error {
+  color: #f0a48c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .cloud-error {
+    color: #f0a48c;
+  }
+}
+
+.cloud-user {
+  margin-top: 8px;
+  word-break: break-all;
+}
+
+.cloud-user span {
+  font-weight: 700;
+}
+
+.cloud-status {
+  color: var(--muted);
+}
+
+.danger-zone {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+
+.danger-zone summary {
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+.danger-zone .btn-danger {
+  margin-top: 10px;
+  border-color: #b0412e;
+  color: #b0412e;
+}

@@ -1,7 +1,7 @@
 // 成功日記 Service Worker：預先快取 App 外殼，離線也能開啟。
 // 更新網站檔案後，請把 VERSION 加一，讓使用者取得新版。
 
-const VERSION = 'v8';
+const VERSION = 'v9';
 const CACHE = `success-journal-${VERSION}`;
 
 const ASSETS = [
@@ -18,6 +18,10 @@ const ASSETS = [
   './js/images.js',
   './js/stickers.js',
   './js/share.js',
+  './js/config.js',
+  './js/cloud.js',
+  './js/sync.js',
+  './js/sync-core.js',
   './fonts/noto-serif-tc-500.woff2',
   './fonts/noto-serif-tc-700.woff2',
   './fonts/cormorant-500.woff2',
@@ -54,16 +58,20 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // 頁面導覽：先試網路取得最新版，離線時改用快取的首頁
+  // 頁面導覽：先試網路取得最新版，離線時改用快取（只有首頁會更新首頁的快取）
   if (request.mode === 'navigate') {
+    const scope = new URL(self.registration.scope).pathname;
+    const isIndex = url.pathname === scope || url.pathname === `${scope}index.html`;
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          if (res.ok) caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          if (res.ok && isIndex) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          }
           return res;
         })
-        .catch(() => caches.match('./index.html', { ignoreSearch: true })),
+        .catch(() => (isIndex ? caches.match('./index.html', { ignoreSearch: true }) : caches.match(request, { ignoreSearch: true }).then((r) => r || caches.match('./index.html')))),
     );
     return;
   }

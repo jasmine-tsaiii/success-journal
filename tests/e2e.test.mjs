@@ -5,6 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { extname, join, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -55,8 +56,11 @@ after(async () => {
   server?.close();
 });
 
-async function newPage({ date = '2026-10-01T09:00:00', onboarding = false } = {}) {
+async function newPage({ date = '2026-10-01T09:00:00', onboarding = false, cloud = null } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true, locale: 'zh-TW' });
+  // 測試中不連到真正的 Google 與 Supabase；需要時改用假的伺服器
+  if (cloud) await cloud.attach(context);
+  else await context.route(/^https:\/\/(accounts\.google\.com|[a-z0-9]+\.supabase\.co)\//, (route) => route.abort());
   const page = await context.newPage();
   // 除了專門測試新手引導的情況，其餘測試直接略過引導
   if (!onboarding) {
@@ -617,3 +621,274 @@ test('分享今天：有寫內容時出現按鈕，產生 1080×1920 的卡片',
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+/* ---------- 會員與雲端同步（假的 Google 登入與 Supabase） ---------- */
+
+function fakeCloud() {
+  const docs = new Map(); // `${uid}|${kind}|${key}` → row
+  const photos = new Map(); // path → { body, type }
+  const users = new Map(); // uid → email
+  let tick = Date.parse('2026-10-01T00:00:00Z');
+  const nextSyncedAt = () => new Date((tick += 1000)).toISOString().replace('Z', '+00:00');
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
+    'access-control-expose-headers': '*',
+  };
+  const json = (route, status, body) => route.fulfill({ status, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const uidOf = (req) => (req.headers().authorization || '').replace('Bearer tok:', '');
+  const session = (email) => {
+    const id = `uid-${email.split('@')[0]}`;
+    users.set(id, email);
+    return { access_token: `tok:${id}`, refresh_token: `ref:${id}`, expires_in: 3600, user: { id, email, user_metadata: { full_name: 'Amy' } } };
+  };
+
+  const gsi = `window.google = { accounts: { id: {
+    initialize(o) { window.__gsi = o; },
+    renderButton(el) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.id = 'fake-gsi'; b.textContent = '使用 Google 帳戶繼續';
+      b.onclick = () => window.__gsi.callback({ credential: 'fake:' + (window.__fakeEmail || 'amy@example.com') + ':' + window.__gsi.nonce });
+      el.appendChild(b);
+    } } } };`;
+
+  async function handle(route) {
+    const req = route.request();
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const url = new URL(req.url());
+    const path = url.pathname;
+    if (path === '/auth/v1/token') {
+      const body = req.postDataJSON();
+      if (url.searchParams.get('grant_type') === 'id_token') {
+        const [, email, hashed] = body.id_token.split(':');
+        const expect = createHash('sha256').update(body.nonce).digest('hex');
+        if (hashed !== expect) return json(route, 400, { msg: 'nonce mismatch' });
+        return json(route, 200, session(email));
+      }
+      const id = body.refresh_token.replace('ref:', '');
+      return users.has(id) ? json(route, 200, session(users.get(id))) : json(route, 400, { msg: 'invalid refresh token' });
+    }
+    if (path === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
+    const uid = uidOf(req);
+    if (!users.has(uid)) return json(route, 401, { message: 'JWT expired' });
+    if (path === '/rest/v1/journal_docs' && req.method() === 'GET') {
+      const since = url.searchParams.get('synced_at')?.replace('gt.', '');
+      const offset = Number(url.searchParams.get('offset') || 0);
+      const limit = Number(url.searchParams.get('limit') || 1000);
+      const rows = [...docs.values()]
+        .filter((r) => r.user_id === uid && (!since || Date.parse(r.synced_at) > Date.parse(since)))
+        .sort((a, b) => Date.parse(a.synced_at) - Date.parse(b.synced_at))
+        .slice(offset, offset + limit)
+        .map(({ kind, key, data, deleted, updated_at, synced_at }) => ({ kind, key, data, deleted, updated_at, synced_at }));
+      return json(route, 200, rows);
+    }
+    if (path === '/rest/v1/journal_docs' && req.method() === 'POST') {
+      const accepted = [];
+      for (const r of req.postDataJSON()) {
+        if (r.user_id !== uid) return json(route, 403, { message: 'row-level security' });
+        const id = `${uid}|${r.kind}|${r.key}`;
+        const old = docs.get(id);
+        if (old && Date.parse(r.updated_at) < Date.parse(old.updated_at)) continue; // 較舊的版本不覆蓋
+        const row = { ...r, updated_at: new Date(r.updated_at).toISOString().replace('Z', '+00:00'), synced_at: nextSyncedAt() };
+        docs.set(id, row);
+        accepted.push({ kind: row.kind, key: row.key, deleted: row.deleted, updated_at: row.updated_at });
+      }
+      return json(route, 201, accepted);
+    }
+    if (path === '/rest/v1/rpc/delete_my_account') {
+      for (const id of [...docs.keys()]) if (id.startsWith(`${uid}|`)) docs.delete(id);
+      users.delete(uid);
+      return json(route, 200, null);
+    }
+    if (path === '/storage/v1/object/list/photos') {
+      const { prefix } = req.postDataJSON();
+      return json(route, 200, [...photos.keys()].filter((p) => p.startsWith(`${prefix}/`)).map((p) => ({ name: p.slice(prefix.length + 1), id: p })));
+    }
+    if (path === '/storage/v1/object/photos' && req.method() === 'DELETE') {
+      for (const p of req.postDataJSON().prefixes) photos.delete(p);
+      return json(route, 200, []);
+    }
+    const m = path.match(/^\/storage\/v1\/object\/(?:authenticated\/)?photos\/(.+)$/);
+    if (m) {
+      const p = decodeURIComponent(m[1]);
+      if (!p.startsWith(`${uid}/`)) return json(route, 403, { message: 'row-level security' });
+      if (req.method() === 'POST') {
+        photos.set(p, { body: req.postDataBuffer(), type: req.headers()['content-type'] });
+        return json(route, 200, { Key: `photos/${p}` });
+      }
+      const f = photos.get(p);
+      return f ? route.fulfill({ status: 200, headers: { ...cors, 'content-type': f.type }, body: f.body }) : json(route, 400, { error: 'not_found' });
+    }
+    return json(route, 404, { message: `unexpected ${req.method()} ${path}` });
+  }
+
+  return {
+    docs,
+    photos,
+    users,
+    async attach(context) {
+      await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'text/javascript' }, body: gsi }));
+      await context.route(/^https:\/\/[a-z0-9]+\.supabase\.co\//, handle);
+    },
+    rows: (uid, kind) => [...docs.values()].filter((r) => r.user_id === uid && (!kind || r.kind === kind)),
+  };
+}
+
+// 1×1 的 PNG，當作願景板照片
+const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z/C/HgAGgwJ/lK3Q6wAAAABJRU5ErkJggg==';
+
+async function signIn(page) {
+  await page.click('#tab-data');
+  await page.click('#fake-gsi');
+  await page.waitForFunction(() => /上次同步/.test(document.getElementById('cloud-status').textContent), null, { timeout: 15000 });
+}
+
+const syncedText = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1') || '{}'));
+
+test('會員：Google 登入後同步日記、標籤、願景板與照片；換手機登入就能找回', async () => {
+  const server = fakeCloud();
+  const a = await newPage({ cloud: server });
+  // 手機 A：登入前就有的紀錄、自訂標籤、有照片的願景板
+  await a.page.fill('#item-0', '早上喝了一杯溫水');
+  await a.page.fill('#item-1', '完成拖了很久的報告');
+  await a.page.click('#tab-data');
+  assert.equal(await a.page.isVisible('#cloud-panel'), true);
+  assert.equal(await a.page.isVisible('#cloud-out'), true);
+  await a.page.fill('#tag-add-input', '理財');
+  await a.page.click('#tag-add-form button[type=submit]');
+  await a.page.evaluate(async (b64) => {
+    const { putImage } = await import('./js/images.js');
+    const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob();
+    await putImage({ id: 'img-test', blob, width: 1, height: 1 });
+    const boards = [{ id: 'b-test', title: '我的願景板', template: 'cover', palette: 'rose', items: [{ id: 'p1', type: 'photo', imageId: 'img-test', x: 0, y: 0, w: 500, h: 500, rot: 0, z: 1 }], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }];
+    localStorage.setItem('success-journal.boards.v1', JSON.stringify(boards));
+  }, TINY_PNG);
+  await a.page.reload();
+  if (SCREENSHOT_DIR) await a.page.locator('#cloud-panel').screenshot({ path: join(SCREENSHOT_DIR, '50-cloud-signed-out.png') });
+
+  await signIn(a.page);
+  assert.equal(await a.page.isVisible('#cloud-in'), true);
+  assert.equal(await a.page.textContent('#cloud-email'), 'amy@example.com');
+  if (SCREENSHOT_DIR) await a.page.locator('#cloud-panel').screenshot({ path: join(SCREENSHOT_DIR, '51-cloud-signed-in.png') });
+  const uid = 'uid-amy';
+  assert.equal(server.rows(uid, 'entry').length, 1);
+  assert.equal(server.rows(uid, 'entry')[0].data.items[0], '早上喝了一杯溫水');
+  assert.equal(server.rows(uid, 'board').length, 1);
+  assert.ok(server.rows(uid, 'tags')[0].data.list.includes('理財'));
+  assert.ok(server.photos.has(`${uid}/img-test`), '照片已上傳');
+
+  // 登入後不再顯示「資料只存在本機」與備份提醒
+  await a.page.click('#tab-today');
+  assert.equal(await a.page.isHidden('#privacy-note:not(.muted-by-nudge)'), true);
+
+  // 手機 B：全新的手機，登入同一個帳號
+  const b = await newPage({ cloud: server, date: '2026-10-01T10:00:00' });
+  assert.equal(await b.page.inputValue('#item-0'), '');
+  await signIn(b.page);
+  await b.page.click('#tab-today');
+  assert.equal(await b.page.inputValue('#item-0'), '早上喝了一杯溫水');
+  assert.equal(await b.page.inputValue('#item-1'), '完成拖了很久的報告');
+  const bTags = await b.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.tags.v1')));
+  assert.ok(bTags.includes('理財'), '自訂標籤也同步了');
+  assert.ok(bTags.includes('工作'));
+  const bBoards = await boardsInStorage(b.page);
+  assert.equal(bBoards[0].id, 'b-test');
+  const hasPhoto = await b.page.evaluate(async () => {
+    const { getImage } = await import('./js/images.js');
+    const rec = await getImage('img-test');
+    return Boolean(rec && rec.blob.size > 0);
+  });
+  assert.ok(hasPhoto, '照片下載到新手機');
+
+  // 在 B 修改與清空，A 按「立即同步」後跟著更新
+  await b.page.fill('#item-0', '早上喝了一杯溫水，還伸展了十分鐘');
+  await b.page.fill('#item-1', '');
+  await b.page.click('#tab-data');
+  await b.page.click('#cloud-sync');
+  await b.page.waitForFunction(() => !/同步中/.test(document.getElementById('cloud-status').textContent));
+  await b.page.click('#tab-today');
+  await b.page.click('#prev-day');
+  await b.page.fill('#item-0', '前一天也有小成功');
+  await b.page.click('#tab-data');
+  await b.page.click('#cloud-sync');
+  await b.page.waitForFunction(() => !/同步中/.test(document.getElementById('cloud-status').textContent));
+  assert.equal(server.rows(uid, 'entry').length, 2);
+
+  await a.page.click('#tab-data');
+  await a.page.click('#cloud-sync');
+  await a.page.waitForFunction(() => !/同步中/.test(document.getElementById('cloud-status').textContent));
+  const aEntries = await syncedText(a.page);
+  assert.equal(aEntries['2026-10-01'].items[0], '早上喝了一杯溫水，還伸展了十分鐘');
+  assert.equal(aEntries['2026-10-01'].items[1], '');
+  assert.equal(aEntries['2026-09-30'].items[0], '前一天也有小成功');
+  await a.page.click('#tab-today');
+  assert.equal(await a.page.inputValue('#item-0'), '早上喝了一杯溫水，還伸展了十分鐘');
+
+  // 刪除整天的紀錄也會同步（B 目前停在 9/30）
+  await b.page.click('#tab-today');
+  assert.equal(await b.page.inputValue('#item-0'), '前一天也有小成功');
+  await b.page.fill('#item-0', '');
+  await b.page.click('#tab-data');
+  await b.page.click('#cloud-sync');
+  await b.page.waitForFunction(() => !/同步中/.test(document.getElementById('cloud-status').textContent));
+  assert.equal(server.rows(uid, 'entry').find((r) => r.key === '2026-09-30').deleted, true);
+  await a.page.click('#tab-data');
+  await a.page.click('#cloud-sync');
+  await a.page.waitForFunction(() => !/同步中/.test(document.getElementById('cloud-status').textContent));
+  assert.equal((await syncedText(a.page))['2026-09-30'], undefined);
+
+  assert.deepEqual(a.errors, []);
+  assert.deepEqual(b.errors, []);
+  await a.context.close();
+  await b.context.close();
+});
+
+test('會員：寫完會自動同步；登出保留本機資料；刪除帳號清除雲端資料', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server });
+  await signIn(page);
+  await page.click('#tab-today');
+  await page.fill('#item-0', '自動同步測試');
+  await page.locator('#item-0').blur();
+  await page.waitForFunction(() => true);
+  await page.clock.runFor(4000);
+  await page.waitForFunction(() => /上次同步/.test(document.getElementById('cloud-status').textContent) && !/同步中/.test(document.getElementById('cloud-status').textContent));
+  await expectEventually(() => server.rows('uid-amy', 'entry').length === 1, '寫完後自動上傳');
+
+  page.on('dialog', (d) => d.accept());
+  await page.click('#tab-data');
+  await page.click('#cloud-signout');
+  await page.waitForSelector('#cloud-out', { state: 'visible' });
+  assert.equal((await syncedText(page))['2026-10-01'].items[0], '自動同步測試', '登出後本機資料保留');
+  assert.equal(await page.evaluate(() => localStorage.getItem('success-journal.auth.v1')), null);
+
+  await signIn(page);
+  await page.click('#cloud-panel summary');
+  await page.click('#cloud-delete');
+  await page.waitForFunction(() => !document.getElementById('cloud-out').hidden);
+  assert.equal(server.rows('uid-amy').length, 0);
+  assert.equal(server.users.size, 0);
+  assert.equal((await syncedText(page))['2026-10-01'].items[0], '自動同步測試', '刪除帳號後本機資料保留');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('隱私權政策頁可以開啟，且不會蓋掉離線用的首頁', async () => {
+  const { context, page } = await newPage();
+  await page.click('#tab-data');
+  await page.click('#cloud-out a[href="privacy.html"]');
+  await page.waitForURL(/privacy\.html$/);
+  assert.match(await page.textContent('h1'), /隱私權政策/);
+  assert.match(await page.textContent('main'), /刪除帳號與雲端資料/);
+  await context.close();
+});
+
+async function expectEventually(fn, msg, timeout = 5000) {
+  const end = Date.now() + timeout;
+  while (Date.now() < end) {
+    if (await fn()) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  assert.fail(msg);
+}

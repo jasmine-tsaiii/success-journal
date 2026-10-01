@@ -1,4 +1,4 @@
-// 願景板照片：壓縮後存在此裝置的 IndexedDB，不會上傳。
+// 願景板照片：壓縮後存在此裝置的 IndexedDB（登入雲端同步時，sync.js 會另外上傳一份）。
 
 const DB_NAME = 'success-journal';
 const STORE = 'images';
