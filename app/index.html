@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>成功日記</title>
+  <meta name="description" content="每天記錄三件成功小事，搭配七大脈輪主題與溫柔的肯定語。資料只存在你的裝置。">
+  <meta name="theme-color" content="#F8F4EE">
+  <meta name="color-scheme" content="light">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="成功日記">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <div class="glow" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <p class="eyebrow">Success Journal</p>
+    <h1 class="site-title">成功日記</h1>
+    <p class="site-sub">每天，溫柔地看見三件小小的成功</p>
+  </header>
+
+  <main id="main">
+    <!-- 今日 -->
+    <section id="view-today" class="view" aria-labelledby="tab-today" data-view="today">
+      <div class="date-nav">
+        <button type="button" class="icon-btn" id="prev-day" aria-label="前一天">‹</button>
+        <div class="date-nav-center">
+          <label class="date-label" for="date-picker">
+            <span id="current-date-text"></span>
+            <input type="date" id="date-picker" class="date-picker" aria-label="選擇日期">
+          </label>
+          <button type="button" class="text-btn" id="go-today" hidden>回到今天</button>
+        </div>
+        <button type="button" class="icon-btn" id="next-day" aria-label="後一天">›</button>
+      </div>
+
+      <article class="chakra-card" id="chakra-card">
+        <p class="eyebrow" id="chakra-en"></p>
+        <h2 class="chakra-name">
+          <span class="chakra-dot" id="chakra-dot" aria-hidden="true"></span>
+          <span id="chakra-name"></span>
+        </h2>
+        <p class="chakra-meta">
+          <span id="chakra-sanskrit"></span> ・ 代表色：<span id="chakra-color-name"></span>
+        </p>
+        <p class="chakra-theme" id="chakra-theme"></p>
+
+        <div class="chakra-block">
+          <p class="eyebrow">Journal Prompt</p>
+          <h3 class="block-title">今日引導</h3>
+          <p class="prompt-text" id="chakra-prompt"></p>
+        </div>
+        <div class="chakra-block">
+          <p class="eyebrow">Affirmation</p>
+          <h3 class="block-title">今日肯定語</h3>
+          <p class="affirmation-text" id="chakra-affirmation"></p>
+        </div>
+      </article>
+
+      <form class="entry-form" id="entry-form" autocomplete="off">
+        <p class="eyebrow">Three Little Wins</p>
+        <h2 class="section-title" id="entry-title">今天的三件成功小事</h2>
+        <p class="hint">再小的事都算數：準時起床、好好吃一頓飯、對自己說一句溫柔的話。</p>
+        <ol class="entry-list">
+          <li><label for="item-0" class="item-label">第一件</label><textarea id="item-0" rows="2" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
+          <li><label for="item-1" class="item-label">第二件</label><textarea id="item-1" rows="2" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
+          <li><label for="item-2" class="item-label">第三件</label><textarea id="item-2" rows="2" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
+        </ol>
+        <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
+      </form>
+
+      <aside class="note-card">
+        <p class="eyebrow">Privacy</p>
+        <h2 class="note-title">你的日記只存在這台裝置</h2>
+        <p>這本日記不需要帳號，內容只儲存在你目前使用的手機或電腦瀏覽器裡，不會傳送到任何伺服器，任何人（包括 Jasmine）都看不到。</p>
+        <p>也因此，<strong>換手機、清除瀏覽器資料或刪除 App 之前，請先到「備份」下載備份檔</strong>，之後再匯入就能還原。</p>
+        <button type="button" class="text-btn" data-goto="data">前往備份 →</button>
+      </aside>
+    </section>
+
+    <!-- 回顧 -->
+    <section id="view-calendar" class="view" aria-labelledby="tab-calendar" data-view="calendar" hidden>
+      <div class="stats" id="stats">
+        <div class="stat"><span class="stat-num" id="stat-streak">0</span><span class="stat-label">連續記錄天數</span></div>
+        <div class="stat"><span class="stat-num" id="stat-items">0</span><span class="stat-label">累積成功件數</span></div>
+        <div class="stat"><span class="stat-num" id="stat-days">0</span><span class="stat-label">已記錄天數</span></div>
+      </div>
+      <p class="stats-extra" id="stat-longest"></p>
+
+      <div class="calendar-card">
+        <div class="month-nav">
+          <button type="button" class="icon-btn" id="prev-month" aria-label="上個月">‹</button>
+          <div class="month-title-wrap">
+            <p class="eyebrow" id="month-en"></p>
+            <h2 class="month-title" id="month-title"></h2>
+          </div>
+          <button type="button" class="icon-btn" id="next-month" aria-label="下個月">›</button>
+        </div>
+        <div class="weekdays" aria-hidden="true">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div class="calendar-grid" id="calendar-grid" role="grid" aria-label="月曆"></div>
+        <ul class="legend" id="legend" aria-label="脈輪顏色對照"></ul>
+      </div>
+
+      <article class="day-detail" id="day-detail" hidden aria-live="polite"></article>
+    </section>
+
+    <!-- 備份 -->
+    <section id="view-data" class="view" aria-labelledby="tab-data" data-view="data" hidden>
+      <div class="panel">
+        <p class="eyebrow">Backup</p>
+        <h2 class="section-title">備份與還原</h2>
+        <p>資料只存在這台裝置。建議每隔一段時間下載一次備份檔，並存到雲端硬碟或寄給自己保存。</p>
+        <div class="btn-stack">
+          <button type="button" class="btn btn-primary" id="export-json">下載備份檔（JSON）</button>
+          <button type="button" class="btn" id="export-txt">匯出文字檔（方便閱讀）</button>
+          <label class="btn" for="import-file">從備份檔還原</label>
+          <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden">
+        </div>
+        <p class="small">還原時，備份檔中的日期會覆蓋這台裝置上同一天的紀錄，其他日期的紀錄會保留。</p>
+      </div>
+
+      <div class="panel">
+        <p class="eyebrow">Add to Home Screen</p>
+        <h2 class="section-title">加到主畫面</h2>
+        <button type="button" class="btn btn-primary" id="install-btn" hidden>安裝到主畫面</button>
+        <h3 class="sub-title">iPhone／iPad（Safari）</h3>
+        <ol class="steps">
+          <li>用 Safari 開啟這個網頁。</li>
+          <li>點下方的「分享」按鈕（方框加向上箭頭）。</li>
+          <li>選擇「加入主畫面」，再點「新增」。</li>
+        </ol>
+        <h3 class="sub-title">Android（Chrome）</h3>
+        <ol class="steps">
+          <li>用 Chrome 開啟這個網頁。</li>
+          <li>點右上角「⋮」選單。</li>
+          <li>選擇「安裝應用程式」或「加到主畫面」。</li>
+        </ol>
+        <p class="small">加到主畫面後，就算沒有網路也可以打開日記書寫。</p>
+      </div>
+
+      <div class="panel">
+        <p class="eyebrow">About</p>
+        <h2 class="section-title">關於這本日記</h2>
+        <p>每天的脈輪主題依星期輪替：週一海底輪、週二臍輪、週三太陽神經叢輪、週四心輪、週五喉輪、週六眉心輪、週日頂輪。引導問題與肯定語也會隨著週次溫柔地變換。</p>
+        <p class="small">本日記為自我覺察與書寫練習的陪伴工具，不具任何醫療用途，也不能取代醫療診斷、治療或專業心理諮商。若身心感到不適，請尋求專業協助。</p>
+        <p class="small" id="storage-info"></p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" role="tablist" aria-label="主要頁面">
+    <button type="button" role="tab" id="tab-today" data-tab="today" aria-controls="view-today" aria-selected="true">
+      <span class="tab-en">Today</span><span class="tab-zh">今日</span>
+    </button>
+    <button type="button" role="tab" id="tab-calendar" data-tab="calendar" aria-controls="view-calendar" aria-selected="false">
+      <span class="tab-en">Review</span><span class="tab-zh">回顧</span>
+    </button>
+    <button type="button" role="tab" id="tab-data" data-tab="data" aria-controls="view-data" aria-selected="false">
+      <span class="tab-en">Backup</span><span class="tab-zh">備份</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <noscript><p class="noscript">請開啟 JavaScript 才能使用成功日記。</p></noscript>
+</body>
+</html>
