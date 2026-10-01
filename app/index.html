@@ -194,14 +194,26 @@
         <div class="segmented period" role="radiogroup" aria-label="統計期間">
           <label><input type="radio" name="period" value="week"><span>本週</span></label>
           <label><input type="radio" name="period" value="month" checked><span>本月</span></label>
-          <label><input type="radio" name="period" value="year"><span>今年</span></label>
-          <label><input type="radio" name="period" value="all"><span>全部</span></label>
+          <label><input type="radio" name="period" value="year"><span>今年<i class="lock-dot" aria-label="Plus"></i></span></label>
+          <label><input type="radio" name="period" value="all"><span>全部<i class="lock-dot" aria-label="Plus"></i></span></label>
         </div>
         <p class="tag-hero" id="tag-hero"></p>
         <div class="tag-bars" id="tag-bars" role="list"></div>
         <p class="small" id="tag-note"></p>
-        <p class="label-caps tag-table-label">By Month</p>
-        <div class="table-wrap"><table class="tag-table" id="tag-table"></table></div>
+        <p class="label-caps tag-table-label">By Month <span class="plus-badge">Plus</span></p>
+        <div class="table-wrap plus-lockable" id="tag-table-wrap"><table class="tag-table" id="tag-table"></table>
+          <button type="button" class="plus-unlock" data-plus="stats">Plus 會員可看每月表格</button>
+        </div>
+      </section>
+
+      <section class="year-report" aria-labelledby="year-report-title">
+        <p class="label-caps">Year in Review <span class="plus-badge">Plus</span></p>
+        <h2 class="section-title" id="year-report-title">年度回顧報告</h2>
+        <p class="small">把這一年的成功整理成一張雜誌風長圖：件數、記錄天數、最長連續、最常見的成功、每月趨勢，以及隨機挑選的三件小成功。</p>
+        <div class="report-row">
+          <label class="report-year"><span class="visually-hidden">年份</span><select id="report-year"></select></label>
+          <button type="button" class="btn btn-primary" id="report-make">產生年度回顧</button>
+        </div>
       </section>
 
       <div class="calendar">
@@ -229,6 +241,21 @@
         <h1 class="mast-title">設定</h1>
         <p class="mast-meta caps">Settings<br>&amp; Backup</p>
       </header>
+
+      <div class="panel plus-panel">
+        <p class="label-caps">Success Journal Plus</p>
+        <h2 class="section-title">Plus 會員</h2>
+        <p id="plus-status">目前為免費版。</p>
+        <button type="button" class="text-btn" id="plus-open">看看 Plus 有什麼 →</button>
+        <form class="tag-add" id="plus-settings-form" autocomplete="off">
+          <input type="text" id="plus-settings-code" placeholder="貼上解鎖碼" aria-label="解鎖碼">
+          <button type="submit" class="btn">開通</button>
+        </form>
+        <div class="btn-stack">
+          <button type="button" class="btn btn-primary" id="plus-buy-settings">購買 Plus</button>
+        </div>
+        <button type="button" class="text-btn danger" id="plus-remove" hidden>移除這台裝置上的解鎖碼</button>
+      </div>
 
       <div class="panel">
         <p class="label-caps">Backup</p>
@@ -312,6 +339,32 @@
       <span class="tab-en">Settings</span><span class="tab-zh">設定</span>
     </button>
   </nav>
+
+  <dialog class="plus-dialog" id="plus-dialog" aria-labelledby="plus-title">
+    <button type="button" class="plus-x" id="plus-close" aria-label="關閉">×</button>
+    <p class="label-caps">Success Journal Plus</p>
+    <h2 class="plus-title" id="plus-title">成功日記 Plus</h2>
+    <p class="plus-reason" id="plus-reason"></p>
+    <ul class="plus-features">
+      <li>無限張願景板，加上格狀、編輯頁版型</li>
+      <li>深色星空色調：星夜、紫色星雲、極光、黑曜</li>
+      <li>今年／全部的成功類型統計與每月表格</li>
+      <li>年度回顧報告</li>
+      <li>手機桌布去除浮水印</li>
+    </ul>
+    <div class="plus-plans">
+      <div class="plan"><span class="plan-name">月訂</span><span class="plan-price">NT$60<small>／月</small></span></div>
+      <div class="plan featured"><span class="plan-name">年訂</span><span class="plan-price">NT$490<small>／年</small></span><span class="plan-note">約省 30%</span></div>
+      <div class="plan"><span class="plan-name">永久買斷</span><span class="plan-price">NT$1,290<small>一次付清</small></span><span class="plan-note">永久使用</span></div>
+    </div>
+    <button type="button" class="btn btn-primary" id="plus-buy">前往購買</button>
+    <p class="small plus-soon" id="plus-soon">購買頁即將開放。已經有解鎖碼的話，請貼在下方。</p>
+    <form class="plus-form" id="plus-form" autocomplete="off">
+      <input type="text" id="plus-code" placeholder="已經有解鎖碼？貼在這裡" aria-label="解鎖碼">
+      <button type="submit" class="btn">開通</button>
+    </form>
+    <p class="small">付款後會收到解鎖碼或開通連結。資料一樣只存在你的裝置。</p>
+  </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <noscript><p class="noscript">請開啟 JavaScript 才能使用成功日記。</p></noscript>

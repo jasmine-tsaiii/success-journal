@@ -415,7 +415,7 @@ export async function ensureFonts(text = '') {
 }
 
 /** 將願景板畫成 1080×1920 的 canvas */
-export async function renderBoardCanvas(board) {
+export async function renderBoardCanvas(board, { watermark = false } = {}) {
   const palette = paletteById(board.palette);
   await ensureFonts(board.items.map((it) => it.text || '').join(''));
   const assets = await loadAssets(board, palette);
@@ -488,6 +488,19 @@ export async function renderBoardCanvas(board) {
   ctx.fillStyle = grainPattern(ctx, palette.dark);
   ctx.fillRect(0, 0, BOARD_W, BOARD_H);
   ctx.globalCompositeOperation = 'source-over';
+
+  // 免費版：右下角小小的字樣
+  if (watermark) {
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = palette.ink;
+    ctx.font = `500 22px ${LATIN}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    const label = 'MADE WITH SUCCESS JOURNAL';
+    const width = ctx.measureText(label).width + 4 * (label.length - 1);
+    drawSpaced(ctx, label, BOARD_W - 40 - width, BOARD_H - 34, 4);
+    ctx.globalAlpha = 1;
+  }
   return canvas;
 }
 

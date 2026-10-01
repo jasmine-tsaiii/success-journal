@@ -190,3 +190,25 @@ test('文字檔匯出易讀', () => {
   assert.match(txt, /2026 年 10 月 1 日（週四）｜心輪\n {2}1\. 早起\n {2}2\. 散步\n {5}看見夕陽/);
   assert.ok(txt.indexOf('9 月 30 日') < txt.indexOf('10 月 1 日'));
 });
+
+import { computeYearSummary } from '../app/js/core.js';
+
+test('年度回顧：件數、天數、最長連續、每月、標籤、挑選的成功', () => {
+  const entries = {
+    '2025-12-31': t(['去年的事'], [[]]),
+    '2026-01-01': t(['新年第一件', '散步'], [['生活'], ['健康']]),
+    '2026-01-02': t(['報告'], [['工作']]),
+    '2026-01-03': t(['開會 #工作', '早睡'], [[], ['健康']]),
+    '2026-03-10': t(['學會游泳'], [['學習']]),
+  };
+  const s = computeYearSummary(entries, 2026);
+  assert.equal(s.total, 6);
+  assert.equal(s.days, 4);
+  assert.equal(s.longest, 3);
+  assert.deepEqual(s.months.slice(0, 4), [5, 0, 1, 0]);
+  assert.deepEqual(s.tags.map((r) => r.tag).slice(0, 2).sort(), ['健康', '工作']);
+  assert.equal(s.picks.length, 3);
+  assert.ok(s.picks.every((p) => p.date.startsWith('2026')));
+  assert.deepEqual(computeYearSummary(entries, 2026), s, '同一年結果固定');
+  assert.deepEqual(computeYearSummary({}, 2026).picks, []);
+});

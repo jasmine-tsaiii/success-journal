@@ -26,7 +26,10 @@ import {
   itemTags,
   monthlyTagTable,
   periodRange,
+  computeYearSummary,
 } from './core.js';
+import { initPlus, isPlus, onPlusChange, requirePlus } from './plus.js';
+import { renderYearReport, saveCanvas } from './report.js';
 import { isStorageAvailable, loadEntries, loadSettings, loadTagList, requestPersistence, saveEntries, saveSettings, saveTagList } from './storage.js';
 import { initBoards } from './board-ui.js';
 import { usedImageIds } from './board-core.js';
@@ -346,6 +349,21 @@ function renderStats() {
   renderTagReport();
 }
 
+function renderReportYears() {
+  const select = $('report-year');
+  const current = Number(todayKey().slice(0, 4));
+  const years = new Set([current, ...Object.keys(state.entries).filter(isValidKey).map((k) => Number(k.slice(0, 4)))]);
+  const chosen = select.value;
+  select.textContent = '';
+  for (const y of [...years].sort((a, b) => b - a)) {
+    const o = document.createElement('option');
+    o.value = String(y);
+    o.textContent = `${y} 年`;
+    select.appendChild(o);
+  }
+  if (chosen && years.has(Number(chosen))) select.value = chosen;
+}
+
 const PERIOD_LABEL = { week: '本週', month: '本月', year: '今年', all: '全部' };
 
 function renderTagReport() {
@@ -389,7 +407,13 @@ function renderTagReport() {
     bars.appendChild(row);
   }
 
-  // 每月表格
+  // 每月表格（Plus）
+  $('tag-table-wrap').classList.toggle('locked', !isPlus());
+  if (!isPlus() && (state.period === 'year' || state.period === 'all')) {
+    state.period = 'month';
+    document.querySelector('input[name="period"][value="month"]').checked = true;
+  }
+  renderReportYears();
   const table = monthlyTagTable(state.entries, today, 4);
   const el = $('tag-table');
   el.textContent = '';
@@ -693,7 +717,10 @@ function bind() {
   // 離開頁面或切到背景時，立即存檔
   document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flushSave());
   window.addEventListener('pagehide', flushSave);
-  window.addEventListener('hashchange', () => showView(location.hash.slice(1), { updateHash: false }));
+  window.addEventListener('hashchange', () => {
+    if (location.hash.includes('unlock=')) return; // 由 plus.js 處理開通連結
+    showView(location.hash.slice(1), { updateHash: false });
+  });
 
   // 跨日時（例如 App 整晚開著），回到前景時更新到新的一天
   let lastToday = todayKey();
@@ -708,7 +735,7 @@ function bind() {
   });
 }
 
-const boards = initBoards({ toast, stamp });
+const boards = initBoards({ toast, stamp, plus: { isPlus, requirePlus } });
 
 function bindTags() {
   textareas.forEach((ta, i) =>
@@ -728,10 +755,31 @@ function bindTags() {
   });
   document.querySelectorAll('input[name="period"]').forEach((r) =>
     r.addEventListener('change', () => {
+      if ((r.value === 'year' || r.value === 'all') && !requirePlus('stats')) {
+        document.querySelector(`input[name="period"][value="${state.period}"]`).checked = true;
+        return;
+      }
       state.period = r.value;
       renderTagReport();
     }),
   );
+  document.querySelectorAll('[data-plus]').forEach((b) => b.addEventListener('click', () => requirePlus(b.dataset.plus)));
+
+  $('report-make').addEventListener('click', async () => {
+    if (!requirePlus('report')) return;
+    const year = Number($('report-year').value);
+    const btn = $('report-make');
+    btn.disabled = true;
+    try {
+      const canvas = await renderYearReport(computeYearSummary(state.entries, year));
+      const result = await saveCanvas(canvas, `success-journal-${year}.png`, `${year} 年度回顧`);
+      if (result === 'downloaded') toast(`已存下 ${year} 年度回顧`);
+    } catch {
+      toast('產生報告時發生問題，請再試一次');
+    } finally {
+      btn.disabled = false;
+    }
+  });
   $('tag-add-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = cleanTagName($('tag-add-input').value);
@@ -789,6 +837,11 @@ function bindPrivacyNote() {
 function init() {
   bind();
   bindPrivacyNote();
+  onPlusChange(() => {
+    if (!$('view-calendar').hidden) renderTagReport();
+    if (!$('view-dreams').hidden) boards.show();
+  });
+  initPlus({ toast });
   bindSettings();
   bindTags();
   if (!storageOk) {

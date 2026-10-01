@@ -1733,3 +1733,250 @@ textarea:focus {
 .detail-list li {
   flex-wrap: wrap;
 }
+
+/* ---------- Plus ---------- */
+
+.plus-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  line-height: 1.6;
+  vertical-align: 1px;
+}
+
+.is-plus .plus-badge,
+.is-plus .lock-dot {
+  display: none;
+}
+
+.lock-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 3px;
+}
+
+.plus-lockable {
+  position: relative;
+}
+
+.plus-unlock {
+  display: none;
+}
+
+.plus-lockable.locked > table {
+  filter: blur(4px);
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+}
+
+.plus-lockable.locked .plus-unlock {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--ink);
+  background: var(--bg);
+  color: var(--ink);
+  padding: 9px 16px;
+  font-size: 13.5px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.template-btn.locked .board-stage,
+.palette-btn.locked .pal-swatch {
+  opacity: 0.55;
+}
+
+.template-btn.locked span::after,
+.palette-btn.locked .pal-name::after {
+  content: 'Plus';
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--latin);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.year-report {
+  margin-top: 30px;
+  padding-top: 16px;
+  border-top: 1.5px solid var(--ink);
+}
+
+.report-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  margin-top: 12px;
+}
+
+.report-year select {
+  height: 100%;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  padding: 0 10px;
+  border-radius: 0;
+}
+
+.report-row .btn {
+  flex: 1;
+}
+
+.plus-panel #plus-status {
+  font-size: 15px;
+}
+
+/* 付費牆 */
+.plus-dialog {
+  width: min(440px, calc(100% - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 0;
+  border-top: 6px solid var(--accent);
+  padding: 28px 24px 22px;
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: 0 30px 80px -20px rgba(30, 20, 15, 0.6);
+}
+
+.plus-dialog::backdrop {
+  background: rgba(30, 22, 18, 0.45);
+}
+
+.plus-x {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.plus-title {
+  font-size: 24px;
+  letter-spacing: 0.16em;
+  margin-bottom: 4px;
+}
+
+.plus-reason {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.plus-features {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 18px;
+  font-size: 14.5px;
+}
+
+.plus-features li {
+  padding: 7px 0 7px 22px;
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+}
+
+.plus-features li::before {
+  content: '✳';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-size: 12px;
+  top: 9px;
+}
+
+.plus-plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.plan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 4px 10px;
+  border: 1px solid var(--rule);
+  text-align: center;
+}
+
+.plan.featured {
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+}
+
+.plan-name {
+  font-size: 13px;
+  color: var(--ink-2);
+  letter-spacing: 0.1em;
+}
+
+.plan-price {
+  font-family: var(--latin);
+  font-size: 20px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.plan-price small {
+  display: block;
+  font-family: var(--serif);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.plan-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--accent);
+}
+
+.plus-soon {
+  text-align: center;
+  margin: 6px 0 0;
+}
+
+.plus-form {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 10px;
+}
+
+.plus-form input,
+#plus-settings-code {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-size: 16px;
+  padding: 6px 0;
+}
+
+.plus-form .btn {
+  width: auto;
+  padding: 8px 18px;
+}

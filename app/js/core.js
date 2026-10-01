@@ -362,3 +362,54 @@ export function buildTextExport(entries, boards = []) {
   }
   return lines.join('\n');
 }
+
+/* ---------- 年度回顧 ---------- */
+
+/** 整理某一年的成功：件數、記錄天數、最長連續、每月件數、最常見標籤、三件小成功 */
+export function computeYearSummary(entries, year) {
+  const from = `${year}-01-01`;
+  const to = `${year}-12-31`;
+  const keys = Object.keys(entries)
+    .filter((k) => isValidKey(k) && k >= from && k <= to && hasRecord(entries[k]))
+    .sort();
+  const months = Array(12).fill(0);
+  const wins = [];
+  for (const k of keys) {
+    const n = filledItems(entries[k]);
+    months[Number(k.slice(5, 7)) - 1] += n.length;
+    for (const t of n) wins.push({ date: k, text: t.trim() });
+  }
+  let longest = 0;
+  let run = 0;
+  let prev = null;
+  for (const n of keys.map(dayNumber)) {
+    run = prev !== null && n === prev + 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+    prev = n;
+  }
+  const tagStats = computeTagStats(entries, { from, to });
+  // 依年份固定挑選，同一年每次產生的報告一樣
+  let seed = Number(year) * 2654435761 >>> 0;
+  const rand = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  const pool = wins.filter((w) => [...w.text].length <= 40);
+  const picks = [];
+  const source = pool.length >= 3 ? pool : wins;
+  const used = new Set();
+  while (picks.length < Math.min(3, source.length)) {
+    const i = Math.floor(rand() * source.length);
+    if (used.has(i)) continue;
+    used.add(i);
+    picks.push(source[i]);
+  }
+  picks.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    year: Number(year),
+    total: wins.length,
+    days: keys.length,
+    longest,
+    months,
+    tags: tagStats.rows.slice(0, 5),
+    untagged: tagStats.untagged,
+    picks,
+  };
+}

@@ -1,7 +1,7 @@
 // 成功日記 Service Worker：預先快取 App 外殼，離線也能開啟。
 // 更新網站檔案後，請把 VERSION 加一，讓使用者取得新版。
 
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = `success-journal-${VERSION}`;
 
 const ASSETS = [
@@ -17,6 +17,10 @@ const ASSETS = [
   './js/board-ui.js',
   './js/images.js',
   './js/stickers.js',
+  './js/plus.js',
+  './js/license.js',
+  './js/license-keys.js',
+  './js/report.js',
   './fonts/noto-serif-tc-500.woff2',
   './fonts/noto-serif-tc-700.woff2',
   './fonts/cormorant-500.woff2',
@@ -58,8 +62,12 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          const copy = res.clone();
-          if (res.ok) caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          // 只把 App 首頁存成離線用的首頁（其他頁面例如 issuer.html 不覆蓋）
+          const path = new URL(request.url).pathname;
+          if (res.ok && (path.endsWith('/') || path.endsWith('/index.html'))) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put('./index.html', copy));
+          }
           return res;
         })
         .catch(() => caches.match('./index.html', { ignoreSearch: true })),

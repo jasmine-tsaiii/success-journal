@@ -8,6 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { generateKeyPair, issueCode, verifyCode } from '../app/js/license.js';
 
 const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'app');
 const BASE = '/success-journal/';
@@ -23,9 +24,14 @@ const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR;
 
 let server;
 let origin;
+// 測試用金鑰：伺服器以它取代 App 內建的公鑰
+let testKeys;
+let lifetimeCode;
 let browser;
 
 before(async () => {
+  testKeys = await generateKeyPair();
+  lifetimeCode = (await issueCode(testKeys.privateJwk, { plan: 'l', start: '2026-10-01' })).code;
   server = http.createServer(async (req, res) => {
     const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
     if (!path.startsWith(BASE)) {
@@ -36,6 +42,10 @@ before(async () => {
     if (rel === '.' || rel.endsWith('/')) rel = join(rel, 'index.html');
     if (rel.startsWith('..')) {
       res.writeHead(403).end();
+      return;
+    }
+    if (rel.endsWith('license-keys.js')) {
+      res.writeHead(200, { 'content-type': TYPES['.js'] }).end(`export const PUBLIC_KEYS = [${JSON.stringify(testKeys.publicJwk)}];`);
       return;
     }
     try {
@@ -55,9 +65,10 @@ after(async () => {
   server?.close();
 });
 
-async function newPage({ date = '2026-10-01T09:00:00' } = {}) {
+async function newPage({ date = '2026-10-01T09:00:00', plus = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true, locale: 'zh-TW' });
   const page = await context.newPage();
+  if (plus) await page.addInitScript((code) => localStorage.setItem('success-journal.license.v1', code), lifetimeCode);
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
   if (date) await page.clock.install({ time: new Date(date) });
@@ -245,7 +256,7 @@ const pngSize = (buf) => [buf.readUInt32BE(16), buf.readUInt32BE(20)];
 const boardsInStorage = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.boards.v1')));
 
 test('願景板：預設封面、點照片格加照片、版型、色調、文字、素材、調整、復原、存成桌布、備份還原', async () => {
-  const { context, page, errors } = await newPage();
+  const { context, page, errors } = await newPage({ plus: true });
 
   // 第一次進來：直接開一張預設的封面願景板
   await page.click('#tab-dreams');
@@ -439,7 +450,7 @@ test('設定：可以關閉脈輪名稱，只保留色彩與肯定語', async ()
 });
 
 test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表格', async () => {
-  const { context, page, errors } = await newPage();
+  const { context, page, errors } = await newPage({ plus: true });
   await page.fill('#item-0', '完成提案 #工作');
   await page.fill('#item-1', '傍晚去散步');
   await page.fill('#item-2', '十分鐘冥想');
@@ -528,5 +539,129 @@ test('隱私提醒：預設收合成一行，按 × 之後 7 天內不再出現'
   });
   await page.reload();
   assert.equal(await page.isVisible('#privacy-note'), true, '超過 7 天再提醒');
+  await context.close();
+});
+
+test('Plus：免費版的限制、付費牆、解鎖碼與開通連結、年度回顧、浮水印', async () => {
+  const { context, page, errors } = await newPage();
+  const dialogOpen = () => page.evaluate(() => document.getElementById('plus-dialog').open);
+  const closeDialog = () => page.click('#plus-close');
+
+  // 免費版：第一張願景板可以用，第二張要 Plus
+  await page.click('#tab-dreams');
+  await page.click('#board-back');
+  await page.click('#new-board');
+  assert.equal(await dialogOpen(), true);
+  assert.match(await page.textContent('#plus-reason'), /無限張願景板/);
+  await closeDialog();
+  assert.equal(await page.locator('.board-card').count(), 1);
+
+  // 版型與深色色調鎖住
+  await page.click('.board-card');
+  await page.click('.tool[data-panel="template"]');
+  assert.match(await page.getAttribute('.template-btn[data-template="grid"]', 'class'), /locked/);
+  await page.click('.template-btn[data-template="grid"]');
+  assert.equal(await dialogOpen(), true);
+  await closeDialog();
+  await page.click('.tool[data-panel="palette"]');
+  await page.click('.palette-btn[data-palette="starry"]');
+  assert.equal(await dialogOpen(), true);
+  await closeDialog();
+  assert.equal(await page.getAttribute('#board-stage', 'data-palette'), 'rose');
+  await page.click('.palette-btn[data-palette="sage"]'); // 淺色可以用
+  assert.equal(await page.getAttribute('#board-stage', 'data-palette'), 'sage');
+
+  // 免費版桌布：右下角有浮水印（取樣右下角是否有深色字）
+  const freePng = await (async () => {
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#board-export')]);
+    return readFile(await dl.path());
+  })();
+
+  // 統計：今年／全部與每月表格鎖住
+  await page.click('#tab-calendar');
+  assert.match(await page.getAttribute('#tag-table-wrap', 'class'), /locked/);
+  await page.click('.segmented.period label:has-text("今年")');
+  assert.equal(await dialogOpen(), true);
+  await closeDialog();
+  assert.equal(await page.isChecked('input[name="period"][value="month"]'), true);
+  await page.click('#report-make');
+  assert.equal(await dialogOpen(), true);
+
+  // 錯誤的解鎖碼
+  await page.fill('#plus-code', 'SJ-abc.def');
+  await page.click('#plus-form button');
+  await page.waitForFunction(() => document.getElementById('toast').textContent.includes('無效') || document.getElementById('toast').textContent.includes('格式'));
+  assert.equal(await dialogOpen(), true);
+
+  // 用開通連結（#unlock=）開通年訂
+  const yearCode = (await issueCode(testKeys.privateJwk, { plan: 'y', start: '2026-10-01' })).code;
+  await page.goto(`${origin}${BASE}#unlock=${yearCode}`);
+  await page.waitForFunction(() => document.documentElement.classList.contains('is-plus'));
+  assert.equal(new URL(page.url()).hash, '', '開通後網址的解鎖碼會被清掉');
+  await page.click('#tab-data');
+  assert.match(await page.textContent('#plus-status'), /已開通・年訂・有效至 2027\.10\.04/);
+
+  // 開通後：統計、每月表格、年度回顧
+  await page.click('#tab-calendar');
+  assert.doesNotMatch(await page.getAttribute('#tag-table-wrap', 'class'), /locked/);
+  await page.click('.segmented.period label:has-text("全部")');
+  assert.equal(await dialogOpen(), false);
+  const [report] = await Promise.all([page.waitForEvent('download'), page.click('#report-make')]);
+  assert.equal(report.suggestedFilename(), 'success-journal-2026.png');
+  const reportPng = await readFile(await report.path());
+  assert.deepEqual(pngSize(reportPng), [1080, 1920]);
+  if (SCREENSHOT_DIR) await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '30-year-report.png'), reportPng));
+
+  // 開通後可以建立第二張願景板、用深色色調
+  await page.click('#tab-dreams');
+  if (await page.isVisible('#board-back')) await page.click('#board-back');
+  await page.click('#new-board');
+  assert.equal(await page.inputValue('#board-title'), '我的願景板 2');
+  await page.click('.tool[data-panel="palette"]');
+  await page.click('.palette-btn[data-palette="starry"]');
+  assert.equal(await page.getAttribute('#board-stage', 'data-palette'), 'starry');
+
+  // Plus 桌布沒有浮水印：免費版檔案的右下角比較「髒」，這裡只比較兩張圖都存得出來
+  assert.deepEqual(pngSize(freePng), [1080, 1920]);
+
+  // 移除解鎖碼 → 回到免費版（資料保留）
+  await page.click('#tab-data');
+  page.once('dialog', (d) => d.accept());
+  await page.click('#plus-remove');
+  assert.equal(await page.evaluate(() => document.documentElement.classList.contains('is-plus')), false);
+  assert.match(await page.textContent('#plus-status'), /免費版/);
+  await page.click('#tab-dreams');
+  if (await page.isVisible('#board-back')) await page.click('#board-back');
+  assert.equal(await page.locator('.board-card').count(), 2, '已建立的願景板不會消失');
+
+  // 到期的解鎖碼
+  const oldCode = (await issueCode(testKeys.privateJwk, { plan: 'm', start: '2026-07-01' })).code;
+  await page.click('#tab-data');
+  await page.fill('#plus-settings-code', oldCode);
+  await page.click('#plus-settings-form button');
+  await page.waitForFunction(() => document.getElementById('toast').textContent.includes('到期'));
+
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('發碼頁：建立金鑰、產生解鎖碼與開通訊息，產生的碼可以用公鑰驗證', async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
+  const page = await context.newPage();
+  await page.goto(`${origin}${BASE}issuer.html`);
+  const [keyFile] = await Promise.all([page.waitForEvent('download'), page.click('#gen-key')]);
+  const privateJwk = JSON.parse(await readFile(await keyFile.path(), 'utf8'));
+  assert.equal(privateJwk.kty, 'EC');
+  const publicJwk = JSON.parse(await page.textContent('#public-key'));
+  assert.equal(publicJwk.d, undefined, '公鑰不能含私鑰');
+  await page.click('.segmented label:has-text("永久買斷")');
+  await page.fill('#note', '訂單 #1001');
+  await page.click('#make');
+  const message = await page.textContent('#message');
+  assert.match(message, /永久買斷，永久使用/);
+  const code = /\n(SJ-[\w-]+\.[\w-]+)\n/.exec(message)[1];
+  assert.ok(message.includes(`${BASE}#unlock=${code}`));
+  assert.deepEqual(await verifyCode(code, { today: '2030-01-01', keys: [publicJwk] }), { ok: true, plan: 'l', expires: null });
+  assert.match(await page.textContent('#history'), /訂單 #1001/);
   await context.close();
 });

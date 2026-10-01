@@ -35,7 +35,7 @@ const TEXT_DEFAULTS = {
   vertical: { fs: 66, h: 760, w: 120 },
 };
 
-export function initBoards({ toast, stamp }) {
+export function initBoards({ toast, stamp, plus }) {
   const state = {
     boards: loadBoards().map(migrateBoard),
     currentId: null,
@@ -86,6 +86,7 @@ export function initBoards({ toast, stamp }) {
   }
 
   function newBoard() {
+    if (state.boards.length >= 1 && !plus.requirePlus('boards')) return;
     const board = createBoard(state.boards.length ? `我的願景板 ${state.boards.length + 1}` : '我的願景板');
     state.boards.push(board);
     persist();
@@ -452,8 +453,12 @@ export function initBoards({ toast, stamp }) {
         b.className = 'palette-btn';
         b.dataset.palette = p.id;
         b.setAttribute('aria-pressed', String(p.id === board.palette));
+        if (p.dark && !plus.isPlus()) b.classList.add('locked');
         b.innerHTML = `<span class="pal-swatch" style="background:${p.bg}"><i style="background:${p.block}"></i><i style="background:${p.accent}"></i></span><span class="pal-name">${p.name}</span>`;
-        b.addEventListener('click', () => commit((bd) => (bd.palette = p.id)));
+        b.addEventListener('click', () => {
+          if (p.dark && !plus.requirePlus('palettes')) return;
+          commit((bd) => (bd.palette = p.id));
+        });
         row.appendChild(b);
       }
     }
@@ -466,12 +471,14 @@ export function initBoards({ toast, stamp }) {
       b.className = 'template-btn';
       b.dataset.template = t.id;
       b.setAttribute('aria-pressed', String(t.id === board.template));
+      if (t.id !== 'cover' && !plus.isPlus()) b.classList.add('locked');
       const mini = document.createElement('div');
       mini.className = 'board-stage mini';
       const label = document.createElement('span');
       label.innerHTML = `${t.name}<small>${t.en}</small>`;
       b.append(mini, label);
       b.addEventListener('click', () => {
+        if (t.id !== 'cover' && !plus.requirePlus('templates')) return;
         commit((bd) => {
           bd.items = applyTemplate(bd, t.id);
           bd.template = t.id;
@@ -564,7 +571,7 @@ export function initBoards({ toast, stamp }) {
     const btn = $('board-export');
     btn.disabled = true;
     try {
-      const canvas = await renderBoardCanvas(board);
+      const canvas = await renderBoardCanvas(board, { watermark: !plus.isPlus() });
       const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
       const name = `vision-board-${stamp()}.png`;
       const file = new File([blob], name, { type: 'image/png' });

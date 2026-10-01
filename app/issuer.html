@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>成功日記 Plus・發碼</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { padding-bottom: 40px; }
+    .issuer textarea, .issuer .out { width: 100%; font-family: ui-monospace, Menlo, monospace; font-size: 12px; border: 1px solid var(--rule); background: var(--paper); padding: 10px; word-break: break-all; }
+    .issuer .out { white-space: pre-wrap; min-height: 3em; }
+    .issuer .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+    .issuer .row .btn { width: auto; }
+    .issuer input[type="date"] { border: 1px solid var(--ink); background: transparent; padding: 8px; font: inherit; color: var(--ink); }
+    .issuer table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .issuer td, .issuer th { border-bottom: 1px solid var(--rule); padding: 6px 4px; text-align: left; vertical-align: top; }
+    .warn { color: #b0503f; font-size: 13.5px; }
+  </style>
+</head>
+<body>
+  <main class="issuer">
+    <header class="mast">
+      <h1 class="mast-title">發碼</h1>
+      <p class="mast-meta caps">Plus<br>Issuer</p>
+    </header>
+    <p class="mast-sub">成功日記 Plus 解鎖碼產生器（只有 Jasmine 使用）</p>
+
+    <section class="panel" id="key-none" hidden>
+      <p class="label-caps">Step 1</p>
+      <h2 class="section-title">建立金鑰</h2>
+      <p>第一次使用：產生一組金鑰。<strong>私鑰</strong>會存在這台裝置的瀏覽器裡，並請下載備份檔妥善保存（不要給任何人）；<strong>公鑰</strong>要放進 App，請複製後交給開發者。</p>
+      <div class="row">
+        <button type="button" class="btn btn-primary" id="gen-key">產生新金鑰</button>
+        <label class="btn" for="import-key">匯入私鑰備份檔</label>
+        <input type="file" id="import-key" accept="application/json,.json" class="visually-hidden">
+      </div>
+    </section>
+
+    <section class="panel" id="key-ready" hidden>
+      <p class="label-caps">Key</p>
+      <h2 class="section-title">金鑰已就緒</h2>
+      <p class="small">公鑰（放進 App 的 <code>app/js/license-keys.js</code>，可以公開）：</p>
+      <div class="out" id="public-key"></div>
+      <div class="row">
+        <button type="button" class="btn" id="copy-public">複製公鑰</button>
+        <button type="button" class="btn" id="backup-key">下載私鑰備份</button>
+        <button type="button" class="btn" id="forget-key">從這台裝置移除私鑰</button>
+      </div>
+      <p class="warn">私鑰備份檔可以產生任何解鎖碼，請像密碼一樣保管，不要上傳或傳給別人。</p>
+    </section>
+
+    <section class="panel" id="issue" hidden>
+      <p class="label-caps">Step 2</p>
+      <h2 class="section-title">產生解鎖碼</h2>
+      <div class="segmented" role="radiogroup" aria-label="方案">
+        <label><input type="radio" name="plan" value="m"><span>月訂</span></label>
+        <label><input type="radio" name="plan" value="y" checked><span>年訂</span></label>
+        <label><input type="radio" name="plan" value="l"><span>永久買斷</span></label>
+      </div>
+      <div class="row">
+        <label>開始日 <input type="date" id="start"></label>
+      </div>
+      <div class="row"><input type="text" id="note" placeholder="備註（例如訂單編號、買家名字），只存在這台裝置" style="flex:1;border:0;border-bottom:1px solid var(--ink);background:transparent;font-size:16px;padding:6px 0"></div>
+      <button type="button" class="btn btn-primary" id="make">產生解鎖碼</button>
+
+      <div id="result" hidden>
+        <p class="label-caps" style="margin-top:18px">Message</p>
+        <p class="small">複製下面整段訊息，貼給買家（Portaly 訂單備註、Email 或 IG 私訊）：</p>
+        <div class="out" id="message"></div>
+        <div class="row"><button type="button" class="btn btn-primary" id="copy-message">複製訊息</button></div>
+      </div>
+    </section>
+
+    <section class="panel" id="history-panel" hidden>
+      <p class="label-caps">History</p>
+      <h2 class="section-title">已發出的解鎖碼</h2>
+      <p class="small">只記錄在這台裝置。</p>
+      <table><thead><tr><th>日期</th><th>方案</th><th>到期</th><th>備註</th></tr></thead><tbody id="history"></tbody></table>
+    </section>
+  </main>
+
+  <script type="module">
+    import { PLANS, generateKeyPair, issueCode } from './js/license.js';
+
+    const $ = (id) => document.getElementById(id);
+    const KEY = 'sj-issuer.private-key';
+    const HIST = 'sj-issuer.history';
+    const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+    const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+    const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const appUrl = new URL('./', location.href).href;
+
+    function publicFromPrivate(jwk) {
+      const { kty, crv, x, y } = jwk;
+      return { kty, crv, x, y };
+    }
+
+    function download(name, text) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    async function copy(text, btn) {
+      try { await navigator.clipboard.writeText(text); btn.textContent = '已複製'; }
+      catch { btn.textContent = '請手動選取複製'; }
+      setTimeout(() => (btn.textContent = btn.dataset.label), 1600);
+    }
+
+    function render() {
+      const key = load(KEY, null);
+      $('key-none').hidden = !!key;
+      $('key-ready').hidden = !key;
+      $('issue').hidden = !key;
+      if (key) $('public-key').textContent = JSON.stringify(publicFromPrivate(key));
+      const hist = load(HIST, []);
+      $('history-panel').hidden = !hist.length;
+      $('history').innerHTML = '';
+      for (const h of hist.slice().reverse()) {
+        const tr = document.createElement('tr');
+        for (const v of [h.at, PLANS[h.plan].name, h.expires || '永久', h.note || '']) {
+          const td = document.createElement('td');
+          td.textContent = v;
+          tr.appendChild(td);
+        }
+        $('history').appendChild(tr);
+      }
+    }
+
+    for (const b of document.querySelectorAll('button')) b.dataset.label = b.textContent;
+    $('start').value = today();
+
+    $('gen-key').addEventListener('click', async () => {
+      const { privateJwk } = await generateKeyPair();
+      save(KEY, privateJwk);
+      download('success-journal-private-key.json', JSON.stringify(privateJwk));
+      render();
+    });
+    $('import-key').addEventListener('change', async (e) => {
+      try {
+        const jwk = JSON.parse(await e.target.files[0].text());
+        if (jwk.kty !== 'EC' || !jwk.d) throw new Error();
+        save(KEY, jwk);
+        render();
+      } catch {
+        alert('這不是有效的私鑰備份檔。');
+      }
+    });
+    $('copy-public').addEventListener('click', (e) => copy($('public-key').textContent, e.target));
+    $('backup-key').addEventListener('click', () => download('success-journal-private-key.json', JSON.stringify(load(KEY, null))));
+    $('forget-key').addEventListener('click', () => {
+      if (confirm('確定要從這台裝置移除私鑰嗎？請先確認已下載備份檔，否則之後無法再發碼。')) {
+        localStorage.removeItem(KEY);
+        render();
+      }
+    });
+    $('make').addEventListener('click', async () => {
+      const plan = document.querySelector('input[name="plan"]:checked').value;
+      const start = $('start').value || today();
+      const { code, payload } = await issueCode(load(KEY, null), { plan, start });
+      const link = `${appUrl}#unlock=${code}`;
+      const until = payload.e ? `，有效至 ${payload.e.replaceAll('-', '.')}` : '，永久使用';
+      $('message').textContent =
+        `謝謝你購買「成功日記 Plus」（${PLANS[plan].name}${until}）🌿\n\n` +
+        `用手機點這個連結就能開通：\n${link}\n\n` +
+        `或打開成功日記 →「設定」→「Plus 會員」，貼上這組解鎖碼：\n${code}\n\n` +
+        `換手機時，用同一組解鎖碼再開通一次就可以了。`;
+      $('result').hidden = false;
+      const hist = load(HIST, []);
+      hist.push({ at: today(), plan, expires: payload.e, note: $('note').value.trim() });
+      save(HIST, hist);
+      $('note').value = '';
+      render();
+    });
+    $('copy-message').addEventListener('click', (e) => copy($('message').textContent, e.target));
+    render();
+  </script>
+</body>
+</html>

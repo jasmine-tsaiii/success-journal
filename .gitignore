@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 test-results/
+
+# 發碼用的私鑰備份，絕對不要提交
+*private-key*.json
