@@ -17,8 +17,17 @@ import {
   parseBackup,
   todayKey,
   weekdayIndex,
+  DEFAULT_TAGS,
+  UNTAGGED,
+  cleanTagName,
+  cleanTags,
+  computeTagStats,
+  extractHashtags,
+  itemTags,
+  monthlyTagTable,
+  periodRange,
 } from './core.js';
-import { isStorageAvailable, loadEntries, loadSettings, requestPersistence, saveEntries, saveSettings } from './storage.js';
+import { isStorageAvailable, loadEntries, loadSettings, loadTagList, requestPersistence, saveEntries, saveSettings, saveTagList } from './storage.js';
 import { initBoards } from './board-ui.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
@@ -33,6 +42,10 @@ const state = {
   selected: null,
   dirty: false,
   settings: loadSettings(),
+  tagList: loadTagList(DEFAULT_TAGS),
+  dayTags: cleanTags(),
+  openPicker: null,
+  period: 'month',
 };
 
 const storageOk = isStorageAvailable();
@@ -118,6 +131,7 @@ function showView(name, { updateHash = true } = {}) {
   if (name === 'calendar') renderCalendar();
   if (name === 'today') renderToday();
   if (name === 'dreams') boards.show();
+  if (name === 'data') renderTagManage();
   if (updateHash && location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
   window.scrollTo({ top: 0 });
 }
@@ -155,6 +169,9 @@ function renderToday() {
     ta.value = items[i];
     autoGrow(ta);
   });
+  state.dayTags = cleanTags(state.entries[key]?.tags);
+  state.openPicker = null;
+  renderTagRows();
   const updated = state.entries[key]?.updatedAt;
   setSaveStatus(updated ? `已儲存在這台裝置・${formatTime(updated)}` : '');
 }
@@ -189,12 +206,123 @@ function flushSave() {
   const key = state.date;
   const items = textareas.map((ta) => ta.value);
   if (items.some((t) => t.trim())) {
-    state.entries[key] = { items, updatedAt: new Date().toISOString() };
+    state.entries[key] = { items, tags: cleanTags(state.dayTags), updatedAt: new Date().toISOString() };
+    // 文字裡新的 #標籤 自動加入標籤清單
+    const fresh = items.flatMap(extractHashtags).filter((t) => !state.tagList.includes(t));
+    if (fresh.length) {
+      state.tagList = [...state.tagList, ...new Set(fresh)];
+      saveTagList(state.tagList);
+      renderTagRows();
+    }
   } else {
     delete state.entries[key];
   }
   if (persist()) {
     setSaveStatus(state.entries[key] ? `已儲存在這台裝置・${formatTime(state.entries[key].updatedAt)}` : '已清空這一天的紀錄');
+  }
+}
+
+/* ---------- 標籤（今日頁） ---------- */
+
+function tagButton(label, { on = false, cls = 'tag-chip', onClick }) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = cls + (on ? ' on' : '');
+  b.textContent = label;
+  if (cls === 'tag-chip') b.setAttribute('aria-pressed', String(on));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function toggleTag(i, tag) {
+  const list = state.dayTags[i];
+  state.dayTags[i] = list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag];
+  state.dirty = true;
+  flushSave();
+  renderTagRows();
+}
+
+let activeRow = null; // 正在書寫的那一件（只有它會出現「#」按鈕）
+
+function renderTagRows() {
+  for (let i = 0; i < ITEMS_PER_DAY; i++) {
+    const row = $(`tags-${i}`);
+    row.textContent = '';
+    const picked = state.dayTags[i];
+    const open = state.openPicker === i;
+    row.closest('li').classList.toggle('writing', activeRow === i || open);
+
+    // 已選的標籤：小字顯示在事件下方，不搶版面
+    if (picked.length) {
+      const list = document.createElement('span');
+      list.className = 'tag-list';
+      list.textContent = picked.map((t) => `#${t}`).join(' ');
+      row.appendChild(list);
+    }
+    const toggle = tagButton(open ? '完成' : '#', {
+      cls: 'tag-toggle',
+      onClick: () => {
+        state.openPicker = open ? null : i;
+        activeRow = i;
+        renderTagRows();
+      },
+    });
+    toggle.setAttribute('aria-label', open ? '完成選擇標籤' : '加上標籤（選填）');
+    toggle.setAttribute('aria-expanded', String(open));
+    row.appendChild(toggle);
+    if (!open) continue;
+
+    const picker = document.createElement('div');
+    picker.className = 'tag-picker';
+    for (const tag of state.tagList) {
+      picker.appendChild(tagButton(tag, { on: picked.includes(tag), onClick: () => toggleTag(i, tag) }));
+    }
+    const form = document.createElement('form');
+    form.className = 'tag-new';
+    form.innerHTML = '<input type="text" maxlength="12" placeholder="自訂標籤" aria-label="自訂標籤"><button type="submit">新增</button>';
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = cleanTagName(form.querySelector('input').value);
+      if (!name) return;
+      if (!state.tagList.includes(name)) {
+        state.tagList = [...state.tagList, name];
+        saveTagList(state.tagList);
+      }
+      if (!state.dayTags[i].includes(name)) toggleTag(i, name);
+      else renderTagRows();
+    });
+    picker.appendChild(form);
+    row.appendChild(picker);
+  }
+}
+
+/* ---------- 標籤管理（設定頁） ---------- */
+
+function renderTagManage() {
+  const box = $('tag-manage');
+  box.textContent = '';
+  for (const tag of state.tagList) {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.textContent = `#${tag}`;
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'tag-remove';
+    x.setAttribute('aria-label', `移除標籤 ${tag}`);
+    x.textContent = '×';
+    x.addEventListener('click', () => {
+      state.tagList = state.tagList.filter((t) => t !== tag);
+      saveTagList(state.tagList);
+      renderTagManage();
+    });
+    chip.appendChild(x);
+    box.appendChild(chip);
+  }
+  if (!state.tagList.length) {
+    const p = document.createElement('span');
+    p.className = 'small';
+    p.textContent = '目前沒有標籤。';
+    box.appendChild(p);
   }
 }
 
@@ -215,6 +343,75 @@ function renderStats() {
   $('stat-items').textContent = s.totalItems;
   $('stat-days').textContent = s.totalDays;
   $('stat-longest').textContent = s.longest > 0 ? `最長連續記錄：${s.longest} 天` : '寫下第一件成功小事，開始累積吧。';
+  renderTagReport();
+}
+
+const PERIOD_LABEL = { week: '本週', month: '本月', year: '今年', all: '全部' };
+
+function renderTagReport() {
+  const today = todayKey();
+  const stats = computeTagStats(state.entries, periodRange(state.period, today));
+  const bars = $('tag-bars');
+  bars.textContent = '';
+  const label = PERIOD_LABEL[state.period];
+
+  if (!stats.total) {
+    $('tag-hero').textContent = `${label}還沒有紀錄。`;
+    $('tag-note').textContent = '';
+  } else if (!stats.rows.length) {
+    $('tag-hero').textContent = `${label}的 ${stats.total} 件成功都還沒有分類。`;
+    $('tag-note').textContent = '在今日頁點「＃ 標籤」或在文字裡打 #標籤，這裡就會出現統計。';
+  } else {
+    const top = stats.rows[0];
+    $('tag-hero').innerHTML = '';
+    $('tag-hero').append(`${label}最多的是 `);
+    const b = document.createElement('b');
+    b.textContent = `#${top.tag}`;
+    $('tag-hero').append(b, `：${top.count} 件，佔 ${Math.round(top.share * 100)}%`);
+    $('tag-note').textContent = `${label}共 ${stats.total} 件成功${stats.untagged ? `，其中 ${stats.untagged} 件未分類` : ''}。一件成功可以有好幾個標籤，所以比例加起來可能超過 100%。`;
+  }
+
+  const rows = [...stats.rows];
+  if (stats.untagged && stats.rows.length) rows.push({ tag: UNTAGGED, count: stats.untagged, share: stats.untagged / stats.total, muted: true });
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  for (const r of rows) {
+    const row = document.createElement('div');
+    row.className = `tag-bar${r.muted ? ' muted' : ''}`;
+    row.setAttribute('role', 'listitem');
+    const pct = Math.round(r.share * 100);
+    const tip = `${r.muted ? r.tag : `#${r.tag}`}：${r.count} 件，${pct}%`;
+    row.title = tip;
+    row.setAttribute('aria-label', tip);
+    row.innerHTML = '<span class="tag-bar-label"></span><span class="tag-bar-track"><span class="tag-bar-fill"></span></span><span class="tag-bar-value"></span>';
+    row.children[0].textContent = r.muted ? r.tag : `#${r.tag}`;
+    row.querySelector('.tag-bar-fill').style.width = `${(r.count / max) * 100}%`;
+    row.children[2].textContent = `${r.count}・${pct}%`;
+    bars.appendChild(row);
+  }
+
+  // 每月表格
+  const table = monthlyTagTable(state.entries, today, 4);
+  const el = $('tag-table');
+  el.textContent = '';
+  const thead = el.createTHead().insertRow();
+  const th0 = document.createElement('th');
+  th0.textContent = '標籤';
+  thead.appendChild(th0);
+  for (const m of table.months) {
+    const th = document.createElement('th');
+    th.textContent = `${Number(m.slice(5))} 月`;
+    thead.appendChild(th);
+  }
+  const body = el.createTBody();
+  for (const r of table.rows) {
+    const tr = body.insertRow();
+    if (r.total) tr.className = 'total';
+    const th = document.createElement('th');
+    th.scope = 'row';
+    th.textContent = r.tag === UNTAGGED || r.tag === '其他' || r.total ? r.tag : `#${r.tag}`;
+    tr.appendChild(th);
+    for (const c of r.counts) tr.insertCell().textContent = c ? String(c) : '–';
+  }
 }
 
 function renderCalendar() {
@@ -299,11 +496,22 @@ function renderDayDetail() {
   if (items.length) {
     const ol = document.createElement('ol');
     ol.className = 'detail-list';
-    for (const t of items) {
+    const entry = state.entries[key];
+    entry.items.forEach((t, i) => {
+      if (typeof t !== 'string' || !t.trim()) return;
       const li = document.createElement('li');
-      li.textContent = t;
+      const span = document.createElement('span');
+      span.textContent = t;
+      li.appendChild(span);
+      const extra = itemTags(entry, i).filter((tag) => !extractHashtags(t).includes(tag));
+      if (extra.length) {
+        const tags = document.createElement('span');
+        tags.className = 'detail-tags';
+        tags.textContent = extra.map((tag) => `#${tag}`).join(' ');
+        li.appendChild(tags);
+      }
       ol.appendChild(li);
-    }
+    });
     el.appendChild(ol);
   } else {
     const p = document.createElement('p');
@@ -361,7 +569,7 @@ async function exportJson() {
       /* 略過讀不到的照片 */
     }
   }
-  const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images });
+  const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images, tags: state.tagList });
   download(`success-journal-backup-${stamp()}.json`, JSON.stringify(backup), 'application/json');
   const days = Object.keys(backup.entries).length;
   toast(`已下載備份檔（${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個願景板` : ''}）`);
@@ -406,6 +614,11 @@ async function importJson(file) {
     return;
   }
   state.entries = mergeEntries(state.entries, parsed.entries);
+  if (parsed.tags.length) {
+    state.tagList = [...new Set([...state.tagList, ...parsed.tags])];
+    saveTagList(state.tagList);
+    renderTagManage();
+  }
   if (persist()) {
     try {
       boards.setBoards(mergeBoards(boards.getBoards(), parsed.boards));
@@ -497,6 +710,45 @@ function bind() {
 
 const boards = initBoards({ toast, stamp });
 
+function bindTags() {
+  textareas.forEach((ta, i) =>
+    ta.addEventListener('focus', () => {
+      if (activeRow === i) return;
+      activeRow = i;
+      if (state.openPicker !== i) state.openPicker = null;
+      renderTagRows();
+    }),
+  );
+  // 點在三件成功以外的地方：收起「#」按鈕與標籤選單
+  document.addEventListener('pointerdown', (e) => {
+    if (activeRow === null || e.target.closest('.win-list li')) return;
+    activeRow = null;
+    state.openPicker = null;
+    renderTagRows();
+  });
+  document.querySelectorAll('input[name="period"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      state.period = r.value;
+      renderTagReport();
+    }),
+  );
+  $('tag-add-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = cleanTagName($('tag-add-input').value);
+    if (!name) return;
+    if (state.tagList.includes(name)) {
+      toast(`已經有「${name}」這個標籤了`);
+      return;
+    }
+    state.tagList = [...state.tagList, name];
+    saveTagList(state.tagList);
+    $('tag-add-input').value = '';
+    renderTagManage();
+    toast(`已新增標籤「${name}」`);
+  });
+  renderTagManage();
+}
+
 function bindSettings() {
   const theme = state.settings.theme || 'auto';
   document.querySelectorAll('input[name="theme"]').forEach((r) => {
@@ -520,9 +772,25 @@ function bindSettings() {
   });
 }
 
+const NOTE_SNOOZE_DAYS = 7;
+
+function bindPrivacyNote() {
+  const note = $('privacy-note');
+  const until = Date.parse(state.settings.privacyNoteHiddenAt || '') + NOTE_SNOOZE_DAYS * 86400000;
+  note.hidden = Number.isFinite(until) && Date.now() < until;
+  $('privacy-close').addEventListener('click', () => {
+    note.hidden = true;
+    state.settings = { ...state.settings, privacyNoteHiddenAt: new Date().toISOString() };
+    saveSettings(state.settings);
+    toast('已收起，7 天後會再提醒你備份');
+  });
+}
+
 function init() {
   bind();
+  bindPrivacyNote();
   bindSettings();
+  bindTags();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }
