@@ -437,3 +437,64 @@ test('設定：可以關閉脈輪名稱，只保留色彩與肯定語', async ()
   assert.equal(await page.isHidden('#chakra-name'), true);
   await context.close();
 });
+
+test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表格', async () => {
+  const { context, page, errors } = await newPage();
+  await page.fill('#item-0', '完成提案 #工作');
+  await page.fill('#item-1', '傍晚去散步');
+  await page.fill('#item-2', '十分鐘冥想');
+  await page.locator('#item-2').blur();
+
+  // 第二件：點「＃ 標籤」→ 健康
+  await page.click('#tags-1 .tag-toggle');
+  await page.click('#tags-1 .tag-picker .tag-chip >> text=健康');
+  // 第三件：自訂標籤「冥想」，同時勾選「自我照顧」
+  await page.click('#tags-2 .tag-toggle');
+  await page.fill('#tags-2 .tag-new input', '#冥想');
+  await page.click('#tags-2 .tag-new button');
+  await page.click('#tags-2 .tag-picker .tag-chip >> text=自我照顧');
+  await page.click('#tags-2 .tag-toggle');
+  assert.equal(await page.textContent('#tags-0 .tag-chip.typed'), '#工作');
+  assert.deepEqual(await page.locator('#tags-2 .tag-chip.on').allTextContents(), ['#冥想', '#自我照顧']);
+  await shot(page, '20-tags-today');
+
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(stored.tags, [[], ['健康'], ['冥想', '自我照顧']]);
+
+  // 昨天也記一筆工作，讓工作成為本月最多
+  await page.click('#prev-day');
+  await page.fill('#item-0', '回完所有信件');
+  await page.click('#tags-0 .tag-toggle');
+  await page.click('#tags-0 .tag-picker .tag-chip >> text=工作');
+
+  await page.click('#tab-calendar');
+  assert.match(await page.textContent('#tag-hero'), /本月最多的是 #工作：1 件/);
+  await page.click('.segmented.period label:has-text("全部")');
+  assert.match(await page.textContent('#tag-hero'), /全部最多的是 #工作：2 件，佔 50%/);
+  const bars = await page.locator('#tag-bars .tag-bar-label').allTextContents();
+  assert.equal(bars[0], '#工作'); // 同件數的順序依語系排序，只檢查第一名與內容
+  assert.deepEqual([...bars].sort(), ['#工作', '#冥想', '#健康', '#自我照顧'].sort());
+  const firstRow = await page.locator('#tag-table tbody tr').first().locator('th, td').allTextContents();
+  assert.deepEqual(firstRow, ['#工作', '–', '–', '1', '1']);
+  await shot(page, '21-tags-report');
+
+  // 當日詳情顯示標籤
+  await page.click('.cal-cell[data-date="2026-10-01"]');
+  assert.match(await page.textContent('#day-detail'), /#冥想 #自我照顧/);
+
+  // 設定頁：新的標籤自動出現，可以移除
+  await page.click('#tab-data');
+  const manage = await page.locator('#tag-manage .tag-chip').allTextContents();
+  assert.ok(manage.some((t) => t.startsWith('#冥想')));
+  await page.click('#tag-manage [aria-label="移除標籤 學習"]');
+  assert.ok(!(await page.locator('#tag-manage').textContent()).includes('#學習'));
+
+  // 備份含標籤
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#export-json')]);
+  const backup = JSON.parse(await readFile(await dl.path(), 'utf8'));
+  assert.ok(backup.tags.includes('冥想') && !backup.tags.includes('學習'));
+  assert.deepEqual(backup.entries['2026-09-30'].tags[0], ['工作']);
+
+  assert.deepEqual(errors, []);
+  await context.close();
+});

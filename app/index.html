@@ -20,9 +20,9 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="color-scheme" content="light dark">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/favicon-64.png" type="image/png" sizes="64x64">
-  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/app-favicon-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="icons/app-icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icons/app-apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -79,10 +79,11 @@
         <p class="label-caps">Three Little Wins</p>
         <h2 class="section-title" id="entry-title">今天的三件成功小事</h2>
         <ol class="win-list">
-          <li><span class="win-num" aria-hidden="true">01</span><label for="item-0" class="visually-hidden">第一件</label><textarea id="item-0" rows="1" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
-          <li><span class="win-num" aria-hidden="true">02</span><label for="item-1" class="visually-hidden">第二件</label><textarea id="item-1" rows="1" maxlength="2000" placeholder="再小的事都算數"></textarea></li>
-          <li><span class="win-num" aria-hidden="true">03</span><label for="item-2" class="visually-hidden">第三件</label><textarea id="item-2" rows="1" maxlength="2000" placeholder="對自己說一聲謝謝"></textarea></li>
+          <li><span class="win-num" aria-hidden="true">01</span><div class="win-body"><label for="item-0" class="visually-hidden">第一件</label><textarea id="item-0" rows="1" maxlength="2000" placeholder="今天，我⋯⋯"></textarea><div class="win-tags" id="tags-0" data-i="0"></div></div></li>
+          <li><span class="win-num" aria-hidden="true">02</span><div class="win-body"><label for="item-1" class="visually-hidden">第二件</label><textarea id="item-1" rows="1" maxlength="2000" placeholder="再小的事都算數"></textarea><div class="win-tags" id="tags-1" data-i="1"></div></div></li>
+          <li><span class="win-num" aria-hidden="true">03</span><div class="win-body"><label for="item-2" class="visually-hidden">第三件</label><textarea id="item-2" rows="1" maxlength="2000" placeholder="對自己說一聲謝謝"></textarea><div class="win-tags" id="tags-2" data-i="2"></div></div></li>
         </ol>
+        <p class="small tag-hint">點「＃ 標籤」幫每件成功分類，也可以直接在文字裡打 #標籤。</p>
         <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
       </form>
 
@@ -186,6 +187,22 @@
       </div>
       <p class="stats-extra" id="stat-longest"></p>
 
+      <section class="tag-report" aria-labelledby="tag-report-title">
+        <p class="label-caps">Categories</p>
+        <h2 class="section-title" id="tag-report-title">成功類型</h2>
+        <div class="segmented period" role="radiogroup" aria-label="統計期間">
+          <label><input type="radio" name="period" value="week"><span>本週</span></label>
+          <label><input type="radio" name="period" value="month" checked><span>本月</span></label>
+          <label><input type="radio" name="period" value="year"><span>今年</span></label>
+          <label><input type="radio" name="period" value="all"><span>全部</span></label>
+        </div>
+        <p class="tag-hero" id="tag-hero"></p>
+        <div class="tag-bars" id="tag-bars" role="list"></div>
+        <p class="small" id="tag-note"></p>
+        <p class="label-caps tag-table-label">By Month</p>
+        <div class="table-wrap"><table class="tag-table" id="tag-table"></table></div>
+      </section>
+
       <div class="calendar">
         <div class="month-nav">
           <button type="button" class="icon-btn" id="prev-month" aria-label="上個月">‹</button>
@@ -223,6 +240,17 @@
           <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden">
         </div>
         <p class="small">備份檔包含日記、願景板與照片。還原時，備份檔中的同一天紀錄與同一個願景板會覆蓋這台裝置上的內容，其他內容會保留。</p>
+      </div>
+
+      <div class="panel">
+        <p class="label-caps">Tags</p>
+        <h2 class="section-title">標籤</h2>
+        <p>寫成功小事時可以點選的分類。按 × 可以移除（已寫過的紀錄不受影響）。</p>
+        <div class="chip-row tag-manage" id="tag-manage"></div>
+        <form class="tag-add" id="tag-add-form" autocomplete="off">
+          <input type="text" id="tag-add-input" maxlength="12" placeholder="新增標籤，例如：理財" aria-label="新增標籤">
+          <button type="submit" class="btn">新增</button>
+        </form>
       </div>
 
       <div class="panel">

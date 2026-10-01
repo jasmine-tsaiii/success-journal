@@ -1,4 +1,5 @@
 // 產生 PWA 所需的 PNG 圖示：米色紙底＋圓形印章，中間是明朝體「成」。
+// 更換圖示設計時請一併更換檔名（例如 app-icon → app-icon2），手機才會重新抓取，不會沿用舊圖示。
 // 用法：node scripts/make-icons.mjs（需要 Playwright 與 Chromium；字型使用 app/fonts 內建字型）
 
 import { readFile } from 'node:fs/promises';
@@ -41,12 +42,12 @@ function iconHtml(size, serif700, latin) {
 }
 
 const outputs = [
-  ['icon-192.png', 192],
-  ['icon-512.png', 512],
-  ['apple-touch-icon.png', 180],
+  ['app-icon-192.png', 192],
+  ['app-icon-512.png', 512],
+  ['app-apple-touch-icon.png', 180],
   // 圖案都在中心 80% 的安全區域內，可直接作為 maskable 圖示
-  ['icon-maskable-512.png', 512],
-  ['favicon-64.png', 64],
+  ['app-icon-maskable-512.png', 512],
+  ['app-favicon-64.png', 64],
 ];
 
 const serif700 = await font('noto-serif-tc-700.woff2');

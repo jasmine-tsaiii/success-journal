@@ -16,6 +16,12 @@ import {
   monthGrid,
   parseBackup,
   weekdayIndex,
+  cleanTagName,
+  computeTagStats,
+  extractHashtags,
+  itemTags,
+  monthlyTagTable,
+  periodRange,
 } from '../app/js/core.js';
 
 const e = (...items) => ({ items: [...items, '', '', ''].slice(0, 3), updatedAt: '2026-01-01T00:00:00.000Z' });
@@ -98,7 +104,64 @@ test('JSON 備份可以來回轉換', () => {
   const backup = buildBackup(entries, new Date('2026-10-01T12:00:00Z'));
   const { entries: back, count } = parseBackup(JSON.stringify(backup));
   assert.equal(count, 2);
-  assert.deepEqual(back, entries);
+  for (const k of Object.keys(entries)) assert.deepEqual(back[k].items, entries[k].items);
+  assert.deepEqual(back['2026-10-01'].tags, [[], [], []]);
+});
+
+const t = (items, tags) => ({ items: [...items, '', '', ''].slice(0, 3), tags, updatedAt: '2026-01-01T00:00:00.000Z' });
+
+test('標籤：#hashtag 解析與名稱清理', () => {
+  assert.deepEqual(extractHashtags('完成報告 #工作 #工作，還有＃健康!'), ['工作', '健康']);
+  assert.deepEqual(extractHashtags('沒有標籤'), []);
+  assert.equal(cleanTagName('  #自我 照顧  '), '自我照顧');
+  assert.equal(cleanTagName('一二三四五六七八九十一二三'), '一二三四五六七八九十一二');
+  const entry = t(['散步 #健康', '', '早睡'], [['生活', '健康'], ['工作'], []]);
+  assert.deepEqual(itemTags(entry, 0), ['生活', '健康']);
+  assert.deepEqual(itemTags(entry, 1), [], '沒有內容的那件不算');
+  assert.deepEqual(itemTags(entry, 2), []);
+});
+
+test('標籤統計：件數、比例、未分類、日期區間', () => {
+  const entries = {
+    '2026-09-29': t(['報告', '跑步', '看書'], [['工作'], ['健康'], []]),
+    '2026-09-30': t(['開會 #工作', '陪家人'], [[], ['人際', '生活']]),
+    '2026-10-01': t(['簡報'], [['工作']]),
+  };
+  const all = computeTagStats(entries);
+  assert.equal(all.total, 6);
+  assert.equal(all.untagged, 1);
+  assert.deepEqual(all.rows.map((r) => [r.tag, r.count]), [['工作', 3], ['人際', 1], ['生活', 1], ['健康', 1]]);
+  assert.equal(all.rows[0].share, 0.5);
+  const oct = computeTagStats(entries, periodRange('month', '2026-10-01'));
+  assert.deepEqual([oct.total, oct.rows[0].tag], [1, '工作']);
+  assert.deepEqual(periodRange('week', '2026-10-01'), { from: '2026-09-28', to: '2026-10-01' });
+  assert.deepEqual(periodRange('year', '2026-10-01'), { from: '2026-01-01', to: '2026-10-01' });
+  assert.equal(computeTagStats({}).total, 0);
+});
+
+test('每月標籤表：近幾個月、其他、未分類、合計', () => {
+  const entries = {
+    '2026-08-15': t(['a', 'b'], [['工作'], ['學習']]),
+    '2026-10-01': t(['c', 'd', 'e'], [['工作'], ['工作'], []]),
+  };
+  const table = monthlyTagTable(entries, '2026-10-01', 3, 1);
+  assert.deepEqual(table.months, ['2026-08', '2026-09', '2026-10']);
+  const row = (tag) => table.rows.find((r) => r.tag === tag).counts;
+  assert.deepEqual(row('工作'), [1, 0, 2]);
+  assert.deepEqual(row('其他'), [1, 0, 0]);
+  assert.deepEqual(row('未分類'), [0, 0, 1]);
+  assert.deepEqual(row('合計'), [2, 0, 3]);
+  // 跨年
+  assert.deepEqual(monthlyTagTable({}, '2026-02-10', 3).months, ['2025-12', '2026-01', '2026-02']);
+});
+
+test('文字檔匯出附上標籤，備份保留標籤與標籤清單', () => {
+  const entries = { '2026-10-01': t(['簡報 #工作', '散步'], [['工作'], ['健康']]) };
+  const txt = buildTextExport(entries);
+  assert.match(txt, /1\. 簡報 #工作\n {2}2\. 散步 {2}#健康/);
+  const back = parseBackup(JSON.stringify(buildBackup(entries, new Date(), { tags: ['工作', '#冥想'] })));
+  assert.deepEqual(back.entries['2026-10-01'].tags[1], ['健康']);
+  assert.deepEqual(back.tags, ['工作', '冥想']);
 });
 
 test('匯入時驗證格式並清理資料', () => {

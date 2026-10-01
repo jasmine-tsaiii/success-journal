@@ -29,6 +29,7 @@ export function saveEntries(entries) {
 }
 
 const BOARDS_KEY = 'success-journal.boards.v1';
+const TAGS_KEY = 'success-journal.tags.v1';
 const SETTINGS_KEY = 'success-journal.settings.v1';
 
 function loadJson(key, fallback) {
@@ -50,6 +51,20 @@ export function loadBoards() {
 
 export function saveBoards(boards) {
   localStorage.setItem(BOARDS_KEY, JSON.stringify(boards));
+}
+
+/** 標籤清單（null 表示尚未設定，使用預設標籤） */
+export function loadTagList(defaults) {
+  const data = loadJson(TAGS_KEY, null);
+  return Array.isArray(data) ? data.filter((t) => typeof t === 'string') : [...defaults];
+}
+
+export function saveTagList(tags) {
+  try {
+    localStorage.setItem(TAGS_KEY, JSON.stringify(tags));
+  } catch {
+    /* 忽略 */
+  }
 }
 
 export const DEFAULT_SETTINGS = { showChakra: true, theme: 'auto' };
