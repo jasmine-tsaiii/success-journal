@@ -11,12 +11,16 @@ import {
   formatDateZh,
   hasRecord,
   isValidKey,
+  mergeBoards,
   mergeEntries,
   monthGrid,
   parseBackup,
   todayKey,
 } from './core.js';
-import { isStorageAvailable, loadEntries, requestPersistence, saveEntries } from './storage.js';
+import { isStorageAvailable, loadEntries, loadSettings, requestPersistence, saveEntries, saveSettings } from './storage.js';
+import { initBoards } from './board-ui.js';
+import { usedImageIds } from './board-core.js';
+import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 
 const $ = (id) => document.getElementById(id);
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -27,6 +31,7 @@ const state = {
   month: null, // { y, m }
   selected: null,
   dirty: false,
+  settings: loadSettings(),
 };
 
 const storageOk = isStorageAvailable();
@@ -76,7 +81,7 @@ function applyChakraTheme(el, chakra) {
 
 /* ---------- 分頁 ---------- */
 
-const VIEWS = ['today', 'calendar', 'data'];
+const VIEWS = ['today', 'dreams', 'calendar', 'data'];
 
 function showView(name, { updateHash = true } = {}) {
   if (!VIEWS.includes(name)) name = 'today';
@@ -88,6 +93,7 @@ function showView(name, { updateHash = true } = {}) {
   }
   if (name === 'calendar') renderCalendar();
   if (name === 'today') renderToday();
+  if (name === 'dreams') boards.show();
   if (updateHash && location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
   window.scrollTo({ top: 0 });
 }
@@ -106,9 +112,11 @@ function renderToday() {
   $('next-day').disabled = key >= today;
 
   applyChakraTheme(document.body, chakra);
-  $('chakra-en').textContent = `${key === today ? "Today's Chakra" : 'Chakra of the Day'} · ${chakra.en}`;
-  $('chakra-name').textContent = chakra.name;
-  $('chakra-sanskrit').textContent = chakra.sanskrit;
+  const showChakra = state.settings.showChakra;
+  $('chakra-en').textContent = key === today ? "Today's Affirmation" : 'Affirmation of the Day';
+  $('chakra-name').textContent = showChakra ? chakra.name : '';
+  $('chakra-name').hidden = !showChakra;
+  $('chakra-sep').hidden = !showChakra;
   $('chakra-color-name').textContent = chakra.colorName;
   $('chakra-theme').textContent = chakra.theme;
   $('chakra-prompt').textContent = prompt;
@@ -226,14 +234,13 @@ function renderCalendar() {
   }
 
   const legend = $('legend');
-  if (!legend.childElementCount) {
-    for (const c of CHAKRAS) {
-      const li = document.createElement('li');
-      li.innerHTML = '<span class="legend-dot"></span>';
-      li.firstChild.style.background = c.color;
-      li.append(c.name);
-      legend.appendChild(li);
-    }
+  legend.textContent = '';
+  for (const c of CHAKRAS) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="legend-dot"></span>';
+    li.firstChild.style.background = c.color;
+    li.append(state.settings.showChakra ? c.name : c.colorName);
+    legend.appendChild(li);
   }
   renderDayDetail();
 }
@@ -252,14 +259,14 @@ function renderDayDetail() {
 
   const eyebrow = document.createElement('p');
   eyebrow.className = 'eyebrow';
-  eyebrow.textContent = chakra.en;
+  eyebrow.textContent = state.settings.showChakra ? chakra.en : 'Little Wins';
   const h = document.createElement('h2');
   h.className = 'section-title';
   h.textContent = formatDateZh(key);
   const meta = document.createElement('p');
   meta.className = 'chakra-meta';
   meta.innerHTML = '<span class="chakra-dot"></span>';
-  meta.append(`${chakra.name}・${chakra.colorName}`);
+  meta.append(state.settings.showChakra ? `${chakra.name}・${chakra.colorName}` : `今日色彩・${chakra.colorName}`);
   el.append(eyebrow, h, meta);
 
   if (items.length) {
@@ -315,16 +322,27 @@ function stamp() {
   return todayKey().replaceAll('-', '');
 }
 
-function exportJson() {
+async function exportJson() {
   flushSave();
-  const backup = buildBackup(state.entries);
-  download(`success-journal-backup-${stamp()}.json`, JSON.stringify(backup, null, 2), 'application/json');
-  toast(`已下載備份檔（${Object.keys(backup.entries).length} 天的紀錄）`);
+  const allBoards = boards.getBoards();
+  const images = {};
+  for (const id of usedImageIds(allBoards)) {
+    try {
+      const rec = await getImage(id);
+      if (rec) images[id] = { data: await blobToDataUrl(rec.blob), width: rec.width, height: rec.height };
+    } catch {
+      /* 略過讀不到的照片 */
+    }
+  }
+  const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images });
+  download(`success-journal-backup-${stamp()}.json`, JSON.stringify(backup), 'application/json');
+  const days = Object.keys(backup.entries).length;
+  toast(`已下載備份檔（${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個夢想板` : ''}）`);
 }
 
 function exportText() {
   flushSave();
-  download(`success-journal-${stamp()}.txt`, buildTextExport(state.entries), 'text/plain;charset=utf-8');
+  download(`success-journal-${stamp()}.txt`, buildTextExport(state.entries, boards.getBoards()), 'text/plain;charset=utf-8');
   toast('已下載文字檔');
 }
 
@@ -337,20 +355,38 @@ async function importJson(file) {
     toast(`匯入失敗：${err.message}`);
     return;
   }
-  if (parsed.count === 0) {
+  const boardCount = parsed.boards.length;
+  if (parsed.count === 0 && boardCount === 0) {
     toast('備份檔裡沒有任何紀錄。');
     return;
   }
   const overlap = Object.keys(parsed.entries).filter((k) => hasRecord(state.entries[k])).length;
+  const existingIds = new Set(boards.getBoards().map((b) => b.id));
+  const boardOverlap = parsed.boards.filter((b) => existingIds.has(b.id)).length;
   const msg =
-    `備份檔中有 ${parsed.count} 天的紀錄。` +
+    `備份檔中有 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個夢想板` : ''}。` +
     (overlap ? `\n其中 ${overlap} 天與這台裝置上的紀錄日期相同，將以備份檔內容覆蓋。` : '') +
+    (boardOverlap ? `\n其中 ${boardOverlap} 個夢想板已存在，將以備份檔內容覆蓋。` : '') +
     '\n確定要匯入嗎？';
   if (!window.confirm(msg)) return;
   flushSave();
+  try {
+    for (const [id, img] of Object.entries(parsed.images)) {
+      await putImage({ id, blob: await dataUrlToBlob(img.data), width: img.width, height: img.height });
+    }
+  } catch {
+    toast('匯入照片時空間不足，請清出一些手機空間後再試一次。');
+    return;
+  }
   state.entries = mergeEntries(state.entries, parsed.entries);
   if (persist()) {
-    toast(`已匯入 ${parsed.count} 天的紀錄`);
+    try {
+      boards.setBoards(mergeBoards(boards.getBoards(), parsed.boards));
+    } catch {
+      toast('夢想板匯入失敗：此裝置的儲存空間可能已滿。');
+      return;
+    }
+    toast(`已匯入 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個夢想板` : ''}`);
     renderToday();
     renderStats();
   }
@@ -432,8 +468,21 @@ function bind() {
   });
 }
 
+const boards = initBoards({ toast, stamp });
+
+function bindSettings() {
+  const box = $('setting-chakra');
+  box.checked = state.settings.showChakra;
+  box.addEventListener('change', () => {
+    state.settings = { ...state.settings, showChakra: box.checked };
+    saveSettings(state.settings);
+    toast(box.checked ? '今日頁會顯示脈輪名稱' : '今日頁只顯示色彩與肯定語');
+  });
+}
+
 function init() {
   bind();
+  bindSettings();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }
