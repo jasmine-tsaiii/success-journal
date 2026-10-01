@@ -1,0 +1,756 @@
+/* 成功日記 — 米白底、淡紫與淡粉柔光、襯線標題、大量留白 */
+
+:root {
+  --cream: #f8f4ee;
+  --paper: #fffdf9;
+  --ink: #4a4250;
+  --ink-soft: #7d7484;
+  --ink-faint: #a79fae;
+  --lavender: #d9cdea;
+  --lavender-deep: #9a86b8;
+  --blush: #f3d6df;
+  --line: #ebe3ea;
+  --chakra: #a985c6;
+  --chakra-soft: #ece2f4;
+
+  --serif: 'Noto Serif TC', 'Noto Serif CJK TC', 'Source Han Serif TC', 'Songti TC', 'STSong', 'PMingLiU', 'MingLiU', Georgia, serif;
+  --serif-en: 'Cormorant Garamond', 'Cormorant', Garamond, 'Times New Roman', Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif;
+
+  --radius: 22px;
+  --shadow: 0 10px 40px -18px rgba(120, 95, 150, 0.35);
+  --tabbar-h: 68px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  background: var(--cream);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.75;
+  letter-spacing: 0.02em;
+  padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 24px);
+  overflow-x: hidden;
+}
+
+/* 柔光漸層背景 */
+.glow {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60vmax 50vmax at 10% -10%, rgba(217, 205, 234, 0.75), transparent 60%),
+    radial-gradient(55vmax 45vmax at 105% 15%, rgba(243, 214, 223, 0.7), transparent 60%),
+    radial-gradient(50vmax 40vmax at 50% 115%, rgba(230, 218, 240, 0.6), transparent 65%),
+    var(--cream);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0;
+  letter-spacing: 0.08em;
+}
+
+p {
+  margin: 0 0 0.9em;
+}
+
+.eyebrow {
+  font-family: var(--serif-en);
+  font-style: italic;
+  font-size: 0.82rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--lavender-deep);
+  margin: 0 0 0.35em;
+}
+
+.small,
+.hint {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+/* ---------- 版頭 ---------- */
+
+.site-header {
+  text-align: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 44px) 24px 28px;
+}
+
+.site-title {
+  font-size: 2rem;
+  letter-spacing: 0.32em;
+  margin-right: -0.32em; /* 抵銷字距，讓標題視覺置中 */
+}
+
+.site-sub {
+  margin: 0.6em 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.12em;
+}
+
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 18px;
+}
+
+.view {
+  animation: fade 0.35s ease;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ---------- 卡片 ---------- */
+
+.chakra-card,
+.entry-form,
+.note-card,
+.panel,
+.calendar-card,
+.day-detail {
+  background: rgba(255, 253, 249, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(235, 227, 234, 0.9);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 24px;
+  margin-bottom: 22px;
+}
+
+.section-title {
+  font-size: 1.3rem;
+  margin-bottom: 0.6em;
+}
+
+.sub-title {
+  font-size: 1rem;
+  margin: 1.2em 0 0.3em;
+}
+
+/* ---------- 日期切換 ---------- */
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.date-nav-center {
+  text-align: center;
+  flex: 1;
+}
+
+.date-label {
+  position: relative;
+  display: inline-block;
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  letter-spacing: 0.06em;
+  padding: 6px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.date-label:focus-within {
+  outline: 2px solid var(--lavender);
+}
+
+.date-picker {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: 0;
+  font-size: 16px; /* 避免 iOS 自動放大 */
+}
+
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 249, 0.8);
+  color: var(--ink-soft);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: var(--serif-en);
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.text-btn {
+  display: inline-block;
+  border: 0;
+  background: none;
+  color: var(--lavender-deep);
+  font: inherit;
+  font-size: 0.88rem;
+  letter-spacing: 0.08em;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+/* ---------- 脈輪卡 ---------- */
+
+.chakra-card {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  padding-top: 34px;
+  background:
+    radial-gradient(120% 70% at 50% 0%, var(--chakra-soft), transparent 70%),
+    rgba(255, 253, 249, 0.85);
+}
+
+.chakra-name {
+  font-size: 1.7rem;
+  letter-spacing: 0.2em;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0.15em 0 0.25em;
+}
+
+.chakra-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--chakra);
+  box-shadow: 0 0 0 5px var(--chakra-soft), 0 0 18px 4px var(--chakra-soft);
+  flex: none;
+}
+
+.chakra-meta {
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.4em;
+}
+
+.chakra-theme {
+  font-family: var(--serif);
+  color: var(--ink-soft);
+  letter-spacing: 0.18em;
+  font-size: 0.92rem;
+}
+
+.chakra-block {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.block-title {
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.6em;
+}
+
+.prompt-text {
+  font-family: var(--serif);
+  font-size: 1.08rem;
+  line-height: 1.9;
+  margin: 0;
+}
+
+.affirmation-text {
+  font-family: var(--serif);
+  font-size: 1.12rem;
+  line-height: 1.9;
+  color: var(--ink);
+  margin: 0;
+}
+
+.affirmation-text::before,
+.affirmation-text::after {
+  color: var(--chakra);
+  font-family: var(--serif);
+}
+
+.affirmation-text::before {
+  content: '「';
+}
+
+.affirmation-text::after {
+  content: '」';
+}
+
+/* ---------- 書寫區 ---------- */
+
+.entry-list {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+  display: grid;
+  gap: 18px;
+}
+
+.item-label {
+  display: block;
+  font-family: var(--serif);
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+}
+
+.item-label::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--chakra);
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: none;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+textarea::placeholder {
+  color: var(--ink-faint);
+}
+
+textarea:focus {
+  outline: none;
+  border-color: var(--lavender);
+  box-shadow: 0 0 0 4px rgba(217, 205, 234, 0.45);
+}
+
+.save-status {
+  min-height: 1.5em;
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+  text-align: right;
+}
+
+/* ---------- 隱私提醒 ---------- */
+
+.note-card {
+  background: linear-gradient(135deg, rgba(236, 226, 244, 0.7), rgba(243, 214, 223, 0.55));
+}
+
+.note-title {
+  font-size: 1.08rem;
+  margin-bottom: 0.7em;
+}
+
+.note-card p {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.note-card strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---------- 回顧 ---------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.stat {
+  background: rgba(255, 253, 249, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 6px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-num {
+  font-family: var(--serif-en);
+  font-size: 2rem;
+  line-height: 1.1;
+  color: var(--lavender-deep);
+}
+
+.stat-label {
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+}
+
+.stats-extra {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin: 6px 0 20px;
+}
+
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.month-title-wrap {
+  text-align: center;
+}
+
+.month-title {
+  font-size: 1.2rem;
+}
+
+.weekdays,
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.weekdays span {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  padding-bottom: 6px;
+}
+
+.cal-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  font-family: var(--serif-en);
+  font-size: 1rem;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  max-width: 48px;
+  justify-self: center;
+  width: 100%;
+}
+
+.cal-cell.empty {
+  cursor: default;
+}
+
+.cal-cell:disabled {
+  color: var(--ink-faint);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cal-cell.recorded {
+  background: color-mix(in srgb, var(--dot) 28%, white);
+  box-shadow: inset 0 0 0 1.5px var(--dot);
+}
+
+.cal-cell.today {
+  font-weight: 700;
+}
+
+.cal-cell.today::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+
+.cal-cell.selected {
+  outline: 2px solid var(--lavender-deep);
+  outline-offset: 2px;
+}
+
+.legend {
+  list-style: none;
+  padding: 18px 0 0;
+  margin: 16px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.day-detail {
+  background:
+    radial-gradient(120% 60% at 50% 0%, var(--chakra-soft), transparent 70%),
+    rgba(255, 253, 249, 0.85);
+}
+
+.day-detail .section-title {
+  font-size: 1.1rem;
+}
+
+.detail-list {
+  margin: 14px 0 18px;
+  padding-left: 1.4em;
+}
+
+.detail-list li {
+  margin-bottom: 0.5em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.detail-list li::marker {
+  color: var(--chakra);
+  font-family: var(--serif-en);
+}
+
+.small-aff {
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  margin-bottom: 18px;
+}
+
+/* ---------- 按鈕 ---------- */
+
+.btn-stack {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 14px;
+}
+
+.btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  border: 1px solid var(--lavender);
+  border-radius: 999px;
+  padding: 13px 20px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  border-color: transparent;
+  background: linear-gradient(120deg, #cdbbe4, #efc9d6);
+  color: #3f3546;
+  box-shadow: 0 8px 22px -12px rgba(154, 134, 184, 0.9);
+}
+
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.text-btn:focus-visible,
+.cal-cell:focus-visible,
+.tabbar button:focus-visible {
+  outline: 2px solid var(--lavender-deep);
+  outline-offset: 2px;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 1.3em;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.panel p {
+  font-size: 0.94rem;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- 底部分頁 ---------- */
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: calc(var(--tabbar-h) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: rgba(248, 244, 238, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+}
+
+.tabbar button {
+  border: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font: inherit;
+}
+
+.tab-en {
+  font-family: var(--serif-en);
+  font-style: italic;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.tab-zh {
+  font-family: var(--serif);
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  margin-right: -0.2em;
+}
+
+.tabbar button[aria-selected='true'] {
+  color: var(--ink);
+}
+
+.tabbar button[aria-selected='true'] .tab-en {
+  color: var(--lavender-deep);
+}
+
+/* ---------- 提示訊息 ---------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+  transform: translate(-50%, 10px);
+  max-width: calc(100% - 40px);
+  background: rgba(74, 66, 80, 0.92);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  white-space: pre-line;
+  opacity: 0;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 20;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.noscript {
+  text-align: center;
+  padding: 20px;
+}
+
+@media (min-width: 640px) {
+  .site-header {
+    padding-top: 64px;
+  }
+  .chakra-card,
+  .entry-form,
+  .note-card,
+  .panel,
+  .calendar-card,
+  .day-detail {
+    padding: 36px 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.day-detail .chakra-meta .chakra-dot {
+  width: 10px;
+  height: 10px;
+  margin-right: 10px;
+  vertical-align: 1px;
+  box-shadow: 0 0 0 4px var(--chakra-soft);
+}
