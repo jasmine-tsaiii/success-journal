@@ -55,9 +55,17 @@ after(async () => {
   server?.close();
 });
 
-async function newPage({ date = '2026-10-01T09:00:00' } = {}) {
+async function newPage({ date = '2026-10-01T09:00:00', onboarding = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true, locale: 'zh-TW' });
   const page = await context.newPage();
+  // 除了專門測試新手引導的情況，其餘測試直接略過引導
+  if (!onboarding) {
+    await page.addInitScript(() => {
+      const key = 'success-journal.settings.v1';
+      const s = JSON.parse(localStorage.getItem(key) || '{}');
+      if (!s.onboarded) localStorage.setItem(key, JSON.stringify({ ...s, onboarded: true }));
+    });
+  }
   const errors = [];
   page.on('pageerror', (err) => errors.push(err.message));
   if (date) await page.clock.install({ time: new Date(date) });
@@ -528,5 +536,84 @@ test('隱私提醒：預設收合成一行，按 × 之後 7 天內不再出現'
   });
   await page.reload();
   assert.equal(await page.isVisible('#privacy-note'), true, '超過 7 天再提醒');
+  await context.close();
+});
+
+test('新手引導：第一次打開顯示三步驟，完成後不再出現；已有紀錄的人不顯示', async () => {
+  const { context, page } = await newPage({ onboarding: true });
+  assert.equal(await page.isVisible('#onboarding'), true);
+  assert.match(await page.textContent('#onboarding .ob-step:not([hidden]) .ob-title'), /每天寫下三件小成功/);
+  await page.click('#ob-next');
+  assert.match(await page.textContent('#onboarding .ob-step:not([hidden]) .ob-title'), /把願景放在眼前/);
+  await page.click('#ob-next');
+  assert.match(await page.textContent('#onboarding .ob-step:not([hidden]) .ob-title'), /日記只存在這台手機/);
+  assert.ok((await page.textContent('#ob-install')).length > 10);
+  assert.equal(await page.textContent('#ob-next'), '開始書寫');
+  await shot(page, '40-onboarding');
+  await page.click('#ob-next');
+  assert.equal(await page.isHidden('#onboarding'), true);
+  await page.reload();
+  assert.equal(await page.isHidden('#onboarding'), true);
+  await context.close();
+
+  // 已經有紀錄（例如舊使用者更新版本）→ 不顯示引導
+  const second = await newPage({ onboarding: true });
+  await second.page.evaluate(() => {
+    localStorage.setItem('success-journal.entries.v1', JSON.stringify({ '2026-09-30': { items: ['a', '', ''] } }));
+    localStorage.removeItem('success-journal.settings.v1');
+  });
+  await second.page.reload();
+  assert.equal(await second.page.isHidden('#onboarding'), true);
+  await second.context.close();
+});
+
+test('備份提醒：記錄 3 天後還沒備份會提醒，備份後消失；14 天後再提醒；可延後', async () => {
+  const { context, page } = await newPage();
+  await page.evaluate(() => {
+    const e = (t) => ({ items: [t, '', ''] });
+    localStorage.setItem('success-journal.entries.v1', JSON.stringify({ '2026-09-28': e('a'), '2026-09-29': e('b'), '2026-09-30': e('c') }));
+  });
+  await page.reload();
+  assert.equal(await page.isVisible('#backup-nudge'), true);
+  assert.match(await page.textContent('#backup-nudge-text'), /記錄了 3 天，還沒有備份過/);
+  assert.equal(await page.isHidden('#privacy-note'), true, '同時只顯示一個提醒');
+  await shot(page, '41-backup-nudge');
+
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#backup-now')]);
+  assert.match(dl.suggestedFilename(), /^success-journal-backup-20261001\.json$/);
+  assert.equal(await page.isHidden('#backup-nudge'), true);
+  await page.click('#tab-data');
+  assert.equal(await page.textContent('#last-backup'), '上次備份：2026.10.01');
+
+  // 20 天前備份過 → 再提醒；按 × 延後 3 天
+  await page.evaluate(() => {
+    const k = 'success-journal.settings.v1';
+    const s = JSON.parse(localStorage.getItem(k));
+    s.lastBackupAt = new Date(Date.now() - 20 * 86400000).toISOString();
+    localStorage.setItem(k, JSON.stringify(s));
+  });
+  await page.reload();
+  await page.click('#tab-today');
+  assert.match(await page.textContent('#backup-nudge-text'), /已經 20 天了/);
+  await page.click('#backup-later');
+  assert.equal(await page.isHidden('#backup-nudge'), true);
+  await page.reload();
+  assert.equal(await page.isHidden('#backup-nudge'), true, '延後期間不再出現');
+  await context.close();
+});
+
+test('分享今天：有寫內容時出現按鈕，產生 1080×1920 的卡片', async () => {
+  const { context, page, errors } = await newPage();
+  assert.equal(await page.isHidden('#share-day'), true);
+  await page.fill('#item-0', '準時起床，喝了一杯溫水');
+  await page.fill('#item-1', '把拖了一週的報告交出去了，主管說寫得很清楚 #工作');
+  await page.fill('#item-2', '傍晚和朋友去河邊散步');
+  assert.equal(await page.isVisible('#share-day'), true);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  assert.equal(dl.suggestedFilename(), 'success-journal-2026-10-01.png');
+  const png = await readFile(await dl.path());
+  assert.deepEqual(pngSize(png), [1080, 1920]);
+  if (SCREENSHOT_DIR) await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '42-share-card.png'), png));
+  assert.deepEqual(errors, []);
   await context.close();
 });
