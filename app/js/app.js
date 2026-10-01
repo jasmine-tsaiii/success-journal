@@ -1,6 +1,7 @@
 import { CHAKRAS } from './chakras.js';
 import {
   ITEMS_PER_DAY,
+  MAX_ITEMS,
   addDays,
   buildBackup,
   buildTextExport,
@@ -53,6 +54,75 @@ const state = {
 
 const storageOk = isStorageAvailable();
 const textareas = Array.from({ length: ITEMS_PER_DAY }, (_, i) => $(`item-${i}`));
+
+/* ---------- 第四件之後的成功（想多寫時才出現） ---------- */
+
+const EXTRA_PLACEHOLDERS = ['還有呢？', '再小的也算', '今天真的很棒', '繼續寫下去吧'];
+
+function wireTextarea(ta, i) {
+  ta.addEventListener('input', () => {
+    autoGrow(ta);
+    scheduleSave();
+    updateShareButton();
+    updateAddWin();
+  });
+  ta.addEventListener('blur', flushSave);
+  ta.addEventListener('focus', () => {
+    if (activeRow === i) return;
+    activeRow = i;
+    if (state.openPicker !== i) state.openPicker = null;
+    renderTagRows();
+  });
+}
+
+function addRow() {
+  const i = textareas.length;
+  const li = document.createElement('li');
+  li.className = 'win-extra';
+  const num = document.createElement('span');
+  num.className = 'win-num';
+  num.setAttribute('aria-hidden', 'true');
+  num.textContent = String(i + 1).padStart(2, '0');
+  const body = document.createElement('div');
+  body.className = 'win-body';
+  const label = document.createElement('label');
+  label.className = 'visually-hidden';
+  label.htmlFor = `item-${i}`;
+  label.textContent = `第 ${i + 1} 件`;
+  const ta = document.createElement('textarea');
+  ta.id = `item-${i}`;
+  ta.rows = 1;
+  ta.maxLength = 2000;
+  ta.placeholder = EXTRA_PLACEHOLDERS[(i - ITEMS_PER_DAY) % EXTRA_PLACEHOLDERS.length];
+  const tags = document.createElement('div');
+  tags.className = 'win-tags';
+  tags.id = `tags-${i}`;
+  tags.dataset.i = String(i);
+  body.append(label, ta, tags);
+  li.append(num, body);
+  document.querySelector('.win-list').appendChild(li);
+  textareas.push(ta);
+  wireTextarea(ta, i);
+  return ta;
+}
+
+/** 調整成 n 格（至少三格） */
+function setRowCount(n) {
+  const count = Math.min(Math.max(n, ITEMS_PER_DAY), MAX_ITEMS);
+  while (textareas.length < count) addRow();
+  while (textareas.length > count) textareas.pop().closest('li').remove();
+}
+
+function updateAddWin() {
+  const last = textareas[textareas.length - 1];
+  $('add-win').hidden = textareas.length >= MAX_ITEMS || !last.value.trim();
+  // 標題：預設「三件」；多寫的時候改成「成功小事」
+  const name = displayName();
+  const day = state.date === todayKey() ? '今天' : '這一天';
+  const many = textareas.length > ITEMS_PER_DAY;
+  $('entry-title').textContent = `${name ? `${name}，` : ''}${day}的${many ? '' : '三件'}成功小事`;
+  $('wins-label').textContent = many ? 'Little Wins' : 'Three Little Wins';
+}
 
 /* ---------- 共用 ---------- */
 
@@ -169,13 +239,14 @@ function renderToday() {
   $('chakra-prompt').textContent = prompt;
   $('chakra-affirmation').textContent = affirmation;
 
-  $('entry-title').textContent = key === today ? '今天的三件成功小事' : '這一天的三件成功小事';
   const items = cleanItems(state.entries[key]?.items);
+  setRowCount(items.length);
   textareas.forEach((ta, i) => {
     ta.value = items[i];
     autoGrow(ta);
   });
-  state.dayTags = cleanTags(state.entries[key]?.tags);
+  state.dayTags = cleanTags(state.entries[key]?.tags, items.length);
+  updateAddWin();
   state.openPicker = null;
   renderTagRows();
   updateShareButton();
@@ -212,9 +283,9 @@ function flushSave() {
   if (!state.dirty) return;
   state.dirty = false;
   const key = state.date;
-  const items = textareas.map((ta) => ta.value);
+  const items = cleanItems(textareas.map((ta) => ta.value));
   if (items.some((t) => t.trim())) {
-    state.entries[key] = { items, tags: cleanTags(state.dayTags), updatedAt: new Date().toISOString() };
+    state.entries[key] = { items, tags: cleanTags(state.dayTags, items.length), updatedAt: new Date().toISOString() };
     // 文字裡新的 #標籤 自動加入標籤清單
     const fresh = items.flatMap(extractHashtags).filter((t) => !state.tagList.includes(t));
     if (fresh.length) {
@@ -253,9 +324,10 @@ function toggleTag(i, tag) {
 let activeRow = null; // 正在書寫的那一件（只有它會出現「#」按鈕）
 
 function renderTagRows() {
-  for (let i = 0; i < ITEMS_PER_DAY; i++) {
+  for (let i = 0; i < textareas.length; i++) {
     const row = $(`tags-${i}`);
     row.textContent = '';
+    if (!state.dayTags[i]) state.dayTags[i] = [];
     const picked = state.dayTags[i];
     const open = state.openPicker === i;
     row.closest('li').classList.toggle('writing', activeRow === i || open);
@@ -616,8 +688,8 @@ function updateBackupNudge() {
   if (due) {
     $('backup-nudge-text').textContent =
       daysSince === null
-        ? `你已經記錄了 ${recordedDays} 天，還沒有備份過。存一份到雲端，換手機也不怕。`
-        : `距離上次備份已經 ${daysSince} 天了，存一份新的吧。`;
+        ? `你已經記錄了 ${recordedDays} 天，還沒有備份過。登入 Google 帳號就會自動同步到雲端，換手機也不怕。`
+        : `距離上次備份已經 ${daysSince} 天了。登入 Google 帳號就會自動同步，不用再手動備份。`;
   }
   // 同時只顯示一個提醒；已登入雲端同步時不需要「資料只存在本機」的提醒
   $('privacy-note').classList.toggle('muted-by-nudge', due || Boolean(cloud.getSession()));
@@ -643,6 +715,7 @@ async function shareToday() {
       affirmation,
       color: chakra.color,
       colorName: chakra.colorName,
+      name: displayName(),
     });
     const result = await shareOrDownload(await canvasToBlob(canvas), `success-journal-${key}.png`, '今天的小成功');
     if (result === 'downloaded') toast('已存下今天的小成功卡片');
@@ -769,12 +842,13 @@ function bind() {
   $('go-today').addEventListener('click', () => goToDate(todayKey()));
   $('date-picker').addEventListener('change', (e) => e.target.value && goToDate(e.target.value));
 
-  textareas.forEach((ta) => {
-    ta.addEventListener('input', () => {
-      autoGrow(ta);
-      scheduleSave();
-    });
-    ta.addEventListener('blur', flushSave);
+  textareas.forEach(wireTextarea);
+  $('add-win').addEventListener('click', () => {
+    const ta = addRow();
+    state.dayTags.push([]);
+    updateAddWin();
+    renderTagRows();
+    ta.focus();
   });
   $('entry-form').addEventListener('submit', (e) => e.preventDefault());
 
@@ -823,17 +897,10 @@ function bind() {
 const boards = initBoards({ toast, stamp });
 
 function bindTags() {
-  textareas.forEach((ta, i) =>
-    ta.addEventListener('focus', () => {
-      if (activeRow === i) return;
-      activeRow = i;
-      if (state.openPicker !== i) state.openPicker = null;
-      renderTagRows();
-    }),
-  );
   // 點在三件成功以外的地方：收起「#」按鈕與標籤選單
   document.addEventListener('pointerdown', (e) => {
-    if (activeRow === null || e.target.closest('.win-list li')) return;
+    // 按「再寫一件」時先不收起，否則按鈕會往上跳、按不到
+    if (activeRow === null || e.target.closest('.win-list li, #add-win')) return;
     activeRow = null;
     state.openPicker = null;
     renderTagRows();
@@ -967,6 +1034,8 @@ async function showGoogleButton() {
 
 async function afterSignIn(session) {
   buttonShown = false;
+  // 還沒設定稱呼時，先用 Google 帳號的名字（可以在設定裡改）
+  if (!displayName() && session.user.name) setDisplayName(session.user.name);
   toast(`已登入 ${session.user.email}，正在同步⋯⋯`);
   renderCloud();
   updateBackupNudge();
@@ -1007,6 +1076,34 @@ function bindCloud() {
   if (cloud.getSession()) sync.syncNow();
 }
 
+/* ---------- 稱呼 ---------- */
+
+const displayName = () => (state.settings.displayName || '').trim();
+
+function setDisplayName(value) {
+  const name = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 12);
+  state.settings = { ...state.settings, displayName: name };
+  saveSettings(state.settings);
+  $('display-name').value = name;
+  renderToday();
+  return name;
+}
+
+function bindDisplayName() {
+  $('display-name').value = displayName();
+  const save = () => {
+    const before = displayName();
+    const name = setDisplayName($('display-name').value);
+    if (name !== before) toast(name ? `之後就叫你「${name}」囉` : '已清除稱呼');
+  };
+  $('display-name').addEventListener('change', save);
+  $('name-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    $('display-name').blur();
+    save();
+  });
+}
+
 const NOTE_SNOOZE_DAYS = 7;
 
 function bindBackupAndShare() {
@@ -1017,7 +1114,6 @@ function bindBackupAndShare() {
     updateBackupNudge();
   });
   $('share-day').addEventListener('click', shareToday);
-  textareas.forEach((ta) => ta.addEventListener('input', updateShareButton));
   renderLastBackup();
   updateBackupNudge();
 }
@@ -1049,6 +1145,7 @@ function init() {
   bindSettings();
   bindTags();
   bindCloud();
+  bindDisplayName();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }

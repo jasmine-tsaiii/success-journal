@@ -176,7 +176,7 @@ test('匯入時驗證格式並清理資料', () => {
     }),
   );
   assert.equal(count, 1);
-  assert.deepEqual(entries['2026-10-01'].items, ['a', '', '']);
+  assert.deepEqual(entries['2026-10-01'].items, ['a', '', '', 'extra'], '第四件之後也保留（非文字的格子變成空白）');
 });
 
 test('合併：備份覆蓋同日期，保留其他日期', () => {
@@ -189,4 +189,25 @@ test('文字檔匯出易讀', () => {
   assert.match(txt, /2026 年 9 月 30 日（週三）｜太陽神經叢輪\n {2}1\. 喝水/);
   assert.match(txt, /2026 年 10 月 1 日（週四）｜心輪\n {2}1\. 早起\n {2}2\. 散步\n {5}看見夕陽/);
   assert.ok(txt.indexOf('9 月 30 日') < txt.indexOf('10 月 1 日'));
+});
+
+test('cleanItems／cleanTags：預設三件，可以多寫到十件，後面的空白格會移除', async () => {
+  const { cleanItems, cleanTags, MAX_ITEMS } = await import('../app/js/core.js');
+  assert.deepEqual(cleanItems(undefined), ['', '', '']);
+  assert.deepEqual(cleanItems(['a']), ['a', '', '']);
+  assert.deepEqual(cleanItems(['a', 'b', 'c', 'd', '', ' ']), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(cleanItems(['a', '', '', '', '']), ['a', '', '']);
+  assert.equal(cleanItems(Array.from({ length: 15 }, (_, i) => `w${i}`)).length, MAX_ITEMS);
+  assert.deepEqual(cleanItems([1, null, 'c', 'd']), ['', '', 'c', 'd']);
+  assert.equal(cleanTags(undefined).length, 3);
+  assert.equal(cleanTags([[], [], [], ['工作']], 4)[3][0], '工作');
+  assert.equal(cleanTags([], 20).length, MAX_ITEMS);
+});
+
+test('parseBackup：保留第四件之後的成功與標籤', async () => {
+  const { parseBackup } = await import('../app/js/core.js');
+  const text = JSON.stringify({ app: 'success-journal', version: 2, entries: { '2026-10-01': { items: ['a', 'b', 'c', 'd', 'e'], tags: [[], [], [], [], ['學習']], updatedAt: '2026-10-01T01:00:00.000Z' } } });
+  const { entries } = parseBackup(text);
+  assert.deepEqual(entries['2026-10-01'].items, ['a', 'b', 'c', 'd', 'e']);
+  assert.deepEqual(entries['2026-10-01'].tags[4], ['學習']);
 });

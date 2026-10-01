@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>成功日記</title>
-  <meta name="description" content="願景板拼貼與成功日記：每天記錄三件成功小事，搭配溫柔的肯定語。不登入時資料只存在你的裝置。">
+  <meta name="description" content="願景板拼貼與成功日記：每天記錄三件成功小事，搭配溫柔的肯定語。用 Google 帳號登入，自動同步到雲端，換手機也找得回來。">
   <meta name="theme-color" content="#F3EBDF">
   <!-- 社群分享預覽（LINE、Facebook、IG 等）。換網域時，請把下面的網址一起改掉 -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="成功日記">
   <meta property="og:locale" content="zh_TW">
   <meta property="og:title" content="成功日記｜看見願景，也看見每天小小的成功">
-  <meta property="og:description" content="願景板拼貼 × 每日三件成功小事，搭配溫柔的肯定語。不需帳號就能開始，登入後可雲端同步。">
+  <meta property="og:description" content="願景板拼貼 × 每日三件成功小事，搭配溫柔的肯定語。用 Google 帳號登入，自動同步到雲端，換手機也不怕。">
   <meta property="og:url" content="https://success.jas-soul.com/">
   <meta property="og:image" content="https://success.jas-soul.com/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -76,13 +76,14 @@
       </div>
 
       <form class="wins" id="entry-form" autocomplete="off">
-        <p class="label-caps">Three Little Wins</p>
+        <p class="label-caps" id="wins-label">Three Little Wins</p>
         <h2 class="section-title" id="entry-title">今天的三件成功小事</h2>
         <ol class="win-list">
           <li><span class="win-num" aria-hidden="true">01</span><div class="win-body"><label for="item-0" class="visually-hidden">第一件</label><textarea id="item-0" rows="1" maxlength="2000" placeholder="今天，我⋯⋯"></textarea><div class="win-tags" id="tags-0" data-i="0"></div></div></li>
           <li><span class="win-num" aria-hidden="true">02</span><div class="win-body"><label for="item-1" class="visually-hidden">第二件</label><textarea id="item-1" rows="1" maxlength="2000" placeholder="再小的事都算數"></textarea><div class="win-tags" id="tags-1" data-i="1"></div></div></li>
           <li><span class="win-num" aria-hidden="true">03</span><div class="win-body"><label for="item-2" class="visually-hidden">第三件</label><textarea id="item-2" rows="1" maxlength="2000" placeholder="對自己說一聲謝謝"></textarea><div class="win-tags" id="tags-2" data-i="2"></div></div></li>
         </ol>
+        <button type="button" class="text-btn add-win" id="add-win" hidden>＋ 再寫一件</button>
         <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
         <button type="button" class="text-btn share-day" id="share-day" hidden>分享今天的小成功 →</button>
       </form>
@@ -91,18 +92,18 @@
         <p class="label-caps">Backup</p>
         <p class="backup-nudge-text" id="backup-nudge-text"></p>
         <div class="nudge-actions">
-          <button type="button" class="btn btn-primary" id="backup-now">立即備份</button>
-          <button type="button" class="text-btn" data-goto="data">或登入自動同步 →</button>
+          <button type="button" class="btn btn-primary" data-goto="data">登入自動同步</button>
+          <button type="button" class="text-btn" id="backup-now">先下載備份</button>
         </div>
         <button type="button" class="note-close" id="backup-later" aria-label="稍後再提醒">×</button>
       </aside>
 
       <aside class="note-card" id="privacy-note" hidden>
         <details>
-          <summary><span class="label-caps">Privacy</span><span class="note-line">資料只存在本機・記得備份</span></summary>
-          <p>不登入也能使用。沒有登入時，你的日記、願景板和照片只儲存在你目前使用的手機或電腦瀏覽器裡，不會上傳到任何伺服器。</p>
-          <p>也因此，<strong>換手機、清除瀏覽器資料或刪除 App 之前，請先到「設定」備份</strong>，或用 Google 帳號登入，自動同步到雲端。</p>
-          <button type="button" class="text-btn" data-goto="data">前往設定 →</button>
+          <summary><span class="label-caps">Privacy</span><span class="note-line">還沒登入・資料只在這台手機</span></summary>
+          <p>還沒登入時，你的日記、願景板和照片只存在這台手機的瀏覽器裡；換手機或清除瀏覽器資料就會不見。</p>
+          <p><strong>用 Google 帳號登入</strong>，就會自動同步到雲端，換手機也找得回來。</p>
+          <button type="button" class="text-btn" data-goto="data">前往登入 →</button>
         </details>
         <button type="button" class="note-close" id="privacy-close" aria-label="收起提醒（7 天後再顯示）">×</button>
       </aside>
@@ -238,101 +239,130 @@
     <section id="view-data" class="view" aria-labelledby="tab-data" data-view="data" hidden>
       <header class="mast">
         <h1 class="mast-title">設定</h1>
-        <p class="mast-meta caps">Settings<br>&amp; Backup</p>
+        <p class="mast-meta caps">Settings</p>
       </header>
 
-      <div class="panel cloud-panel" id="cloud-panel" hidden>
-        <p class="label-caps">Account &amp; Sync</p>
-        <h2 class="section-title">帳號與雲端同步</h2>
+      <!-- 帳號 -->
+      <section class="set-group cloud-panel" id="cloud-panel" aria-labelledby="set-account" hidden>
+        <h2 class="set-label" id="set-account"><span class="label-caps">Account</span>帳號與同步</h2>
         <div id="cloud-out">
-          <p>登入後，日記、標籤、願景板與照片會自動存到雲端。換手機、清除瀏覽器資料，只要登入同一個 Google 帳號就能找回。</p>
+          <p class="set-desc">用 Google 帳號登入，日記、願景板與照片會自動存到雲端，換手機也找得回來。</p>
           <div class="gsi-slot" id="gsi-button"></div>
           <p class="small cloud-error" id="cloud-error" role="alert" hidden></p>
-          <p class="small">登入即表示你同意<a href="privacy.html">隱私權政策</a>。不登入也可以照常使用，資料只會存在這台裝置。</p>
+          <p class="set-note">登入即表示同意<a href="privacy.html">隱私權政策</a></p>
         </div>
         <div id="cloud-in" hidden>
-          <p class="cloud-user">已登入：<span id="cloud-email"></span></p>
-          <p class="small cloud-status" id="cloud-status" role="status" aria-live="polite"></p>
-          <div class="btn-stack">
-            <button type="button" class="btn btn-primary" id="cloud-sync">立即同步</button>
-            <button type="button" class="btn" id="cloud-signout">登出</button>
+          <div class="set-row">
+            <div class="set-main">
+              <span class="set-title" id="cloud-email"></span>
+              <span class="set-sub" id="cloud-status" role="status" aria-live="polite"></span>
+            </div>
+            <button type="button" class="set-action" id="cloud-sync">立即同步</button>
           </div>
-          <p class="small">寫完會自動同步，不需要每次按。<a href="privacy.html">隱私權政策</a></p>
-          <details class="danger-zone">
+          <div class="set-row">
+            <span class="set-title">登出</span>
+            <button type="button" class="set-action" id="cloud-signout">登出</button>
+          </div>
+          <details class="set-more">
             <summary>刪除帳號與雲端資料</summary>
-            <p class="small">會刪除雲端上的日記、願景板、照片與你的帳號，無法復原。這台裝置上的資料會保留。</p>
+            <p class="small">雲端上的日記、願景板、照片與帳號會全部刪除，無法復原；這台裝置上的資料會保留。</p>
             <button type="button" class="btn btn-danger" id="cloud-delete">刪除我的帳號與雲端資料</button>
           </details>
         </div>
-      </div>
+      </section>
 
-      <div class="panel">
-        <p class="label-caps">Backup</p>
-        <h2 class="section-title">備份與還原</h2>
-        <p>沒有登入時，日記、願景板與照片只存在這台裝置，建議每兩週備份一次：手機上按「立即備份」，選 iCloud 雲碟、Google 雲端硬碟或 LINE 存起來就好。</p>
-        <p class="small last-backup" id="last-backup"></p>
-        <div class="btn-stack">
-          <button type="button" class="btn btn-primary" id="export-json">立即備份（存到雲端或手機）</button>
-          <button type="button" class="btn" id="export-txt">匯出文字檔（方便閱讀）</button>
-          <label class="btn" for="import-file">從備份檔還原</label>
-          <input type="file" id="import-file" accept="application/json,.json,text/plain,.txt" class="visually-hidden">
-        </div>
-        <p class="small">備份檔包含日記、願景板與照片。還原時，備份檔中的同一天紀錄與同一個願景板會覆蓋這台裝置上的內容，其他內容會保留。</p>
-      </div>
-
-      <div class="panel">
-        <p class="label-caps">Tags</p>
-        <h2 class="section-title">標籤</h2>
-        <p>寫成功小事時可以點選的分類。按 × 可以移除（已寫過的紀錄不受影響）。</p>
-        <div class="chip-row tag-manage" id="tag-manage"></div>
-        <form class="tag-add" id="tag-add-form" autocomplete="off">
-          <input type="text" id="tag-add-input" maxlength="12" placeholder="新增標籤，例如：理財" aria-label="新增標籤">
-          <button type="submit" class="btn">新增</button>
+      <!-- 個人化 -->
+      <section class="set-group" aria-labelledby="set-personal">
+        <h2 class="set-label" id="set-personal"><span class="label-caps">Personal</span>個人化</h2>
+        <form class="set-row" id="name-form" autocomplete="off">
+          <label class="set-title" for="display-name">你的稱呼</label>
+          <input type="text" class="set-input" id="display-name" maxlength="12" placeholder="例如：小雨" enterkeyhint="done">
+          <button type="submit" class="visually-hidden">儲存稱呼</button>
         </form>
-      </div>
-
-      <div class="panel">
-        <p class="label-caps">Appearance</p>
-        <h2 class="section-title">外觀</h2>
-        <div class="segmented" role="radiogroup" aria-label="外觀">
-          <label><input type="radio" name="theme" value="auto"><span>跟隨系統</span></label>
-          <label><input type="radio" name="theme" value="light"><span>淺色</span></label>
-          <label><input type="radio" name="theme" value="dark"><span>深色</span></label>
+        <div class="set-row">
+          <span class="set-title" id="theme-label">外觀</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="theme-label">
+            <label><input type="radio" name="theme" value="auto"><span>自動</span></label>
+            <label><input type="radio" name="theme" value="light"><span>淺色</span></label>
+            <label><input type="radio" name="theme" value="dark"><span>深色</span></label>
+          </div>
         </div>
-        <label class="switch-row">
-          <input type="checkbox" id="setting-chakra">
-          <span>在今日頁顯示脈輪名稱</span>
+        <label class="set-row">
+          <span class="set-main">
+            <span class="set-title">顯示脈輪名稱</span>
+            <span class="set-sub">關閉後仍保留每天的色彩與肯定語</span>
+          </span>
+          <input type="checkbox" class="switch" id="setting-chakra">
         </label>
-        <p class="small">關閉後，仍會保留每天的色彩與肯定語。</p>
-      </div>
+        <div class="set-block">
+          <span class="set-title">標籤</span>
+          <div class="chip-row tag-manage" id="tag-manage"></div>
+          <form class="tag-add" id="tag-add-form" autocomplete="off">
+            <input type="text" id="tag-add-input" maxlength="12" placeholder="新增標籤，例如：理財" aria-label="新增標籤">
+            <button type="submit">＋ 新增</button>
+          </form>
+        </div>
+      </section>
 
-      <div class="panel">
-        <p class="label-caps">Add to Home Screen</p>
-        <h2 class="section-title">加到主畫面</h2>
-        <button type="button" class="btn btn-primary" id="install-btn" hidden>安裝到主畫面</button>
-        <h3 class="sub-title">iPhone／iPad（Safari）</h3>
-        <ol class="steps">
-          <li>用 Safari 開啟這個網頁。</li>
-          <li>點下方的「分享」按鈕（方框加向上箭頭）。</li>
-          <li>選擇「加入主畫面」，再點「新增」。</li>
-        </ol>
-        <h3 class="sub-title">Android（Chrome）</h3>
-        <ol class="steps">
-          <li>用 Chrome 開啟這個網頁。</li>
-          <li>點右上角「⋮」選單。</li>
-          <li>選擇「安裝應用程式」或「加到主畫面」。</li>
-        </ol>
-        <p class="small">加到主畫面後，就算沒有網路也可以打開日記書寫。</p>
-      </div>
+      <!-- 資料 -->
+      <section class="set-group" aria-labelledby="set-data">
+        <h2 class="set-label" id="set-data"><span class="label-caps">Backup</span>備份與還原</h2>
+        <button type="button" class="set-row set-link" id="export-json">
+          <span class="set-main">
+            <span class="set-title">立即備份</span>
+            <span class="set-sub last-backup" id="last-backup"></span>
+          </span>
+          <span class="set-arrow" aria-hidden="true">→</span>
+        </button>
+        <label class="set-row set-link" for="import-file">
+          <span class="set-title">從備份檔還原</span>
+          <span class="set-arrow" aria-hidden="true">→</span>
+        </label>
+        <input type="file" id="import-file" accept="application/json,.json,text/plain,.txt" class="visually-hidden">
+        <button type="button" class="set-row set-link" id="export-txt">
+          <span class="set-title">匯出文字檔</span>
+          <span class="set-arrow" aria-hidden="true">→</span>
+        </button>
+        <p class="set-note">備份檔包含日記、願景板與照片，手機上可以存到 iCloud、Google 雲端硬碟或 LINE。還原時，同一天與同一個願景板以備份檔為準。</p>
+      </section>
 
-      <div class="panel">
-        <p class="label-caps">About</p>
-        <h2 class="section-title">關於這本日記</h2>
-        <p>每天的色彩、引導問題與肯定語，靈感來自七大脈輪的色彩，依星期輪替：週一紅、週二橙、週三黃、週四綠、週五藍、週六靛、週日紫。</p>
-        <p class="small">本 App 為自我覺察與書寫練習之用，不具醫療用途。</p>
-        <p class="small"><a href="privacy.html">隱私權政策</a></p>
-        <p class="small" id="storage-info"></p>
-      </div>
+      <!-- App -->
+      <section class="set-group" aria-labelledby="set-app">
+        <h2 class="set-label" id="set-app"><span class="label-caps">App</span>關於</h2>
+        <button type="button" class="set-row set-link" id="install-btn" hidden>
+          <span class="set-title">安裝到主畫面</span>
+          <span class="set-arrow" aria-hidden="true">→</span>
+        </button>
+        <details class="set-row-details">
+          <summary class="set-row"><span class="set-title">加到手機主畫面</span><span class="set-arrow" aria-hidden="true">＋</span></summary>
+          <div class="set-detail-body">
+            <p class="sub-title">iPhone／iPad（Safari）</p>
+            <ol class="steps">
+              <li>用 Safari 開啟這個網頁。</li>
+              <li>點下方的「分享」按鈕（方框加向上箭頭）。</li>
+              <li>選擇「加入主畫面」，再點「新增」。</li>
+            </ol>
+            <p class="sub-title">Android（Chrome）</p>
+            <ol class="steps">
+              <li>用 Chrome 開啟這個網頁。</li>
+              <li>點右上角「⋮」選單。</li>
+              <li>選擇「安裝應用程式」或「加到主畫面」。</li>
+            </ol>
+          </div>
+        </details>
+        <details class="set-row-details">
+          <summary class="set-row"><span class="set-title">關於每天的色彩</span><span class="set-arrow" aria-hidden="true">＋</span></summary>
+          <div class="set-detail-body">
+            <p>每天的色彩、引導問題與肯定語，靈感來自七大脈輪的色彩，依星期輪替：週一紅、週二橙、週三黃、週四綠、週五藍、週六靛、週日紫。</p>
+            <p class="small">本 App 為自我覺察與書寫練習之用，不具醫療用途。</p>
+            <p class="small" id="storage-info"></p>
+          </div>
+        </details>
+        <a class="set-row set-link" href="privacy.html">
+          <span class="set-title">隱私權政策</span>
+          <span class="set-arrow" aria-hidden="true">→</span>
+        </a>
+      </section>
     </section>
   </main>
 
@@ -369,8 +399,8 @@
       </section>
       <section class="ob-step" data-step="2" hidden>
         <p class="label-caps">03 · Your Data</p>
-        <h2 class="ob-title">日記只存在這台手機</h2>
-        <p>不需要帳號，任何人都看不到你的日記。也因此，請記得定期到「設定」按「立即備份」，存到雲端硬碟。</p>
+        <h2 class="ob-title">登入，日記就不怕弄丟</h2>
+        <p>到「設定」用 Google 帳號登入，日記、願景板與照片會自動同步到雲端，換手機也找得回來。只有你自己看得到你的日記。</p>
         <div class="ob-install" id="ob-install"></div>
       </section>
       <div class="ob-dots" aria-hidden="true"><i></i><i></i><i></i></div>

@@ -79,10 +79,10 @@ function grain(ctx) {
 }
 
 /**
- * 今日卡片。day = { date: '2026-10-01', week: 'Thu · 週四', wins: [..], affirmation, color, colorName }
+ * 今日卡片。day = { date: '2026-10-01', week: 'Thu · 週四', wins: [..], affirmation, color, colorName, name? }
  */
 export async function renderDayCard(day) {
-  await ensureFonts(`${day.wins.join('')}${day.affirmation}今日色彩成功日記看見願景也看見每天小小的成功`);
+  await ensureFonts(`${day.wins.join('')}${day.affirmation}${day.name || ''}的小成功還有件今日色彩成功日記看見願景也看見每天小小的成功`);
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -111,32 +111,49 @@ export async function renderDayCard(day) {
   ctx.font = `500 30px ${LATIN}`;
   spaced(ctx, day.week.toUpperCase(), W - M, 424, 6, 'right');
 
-  // 三件小成功
+  // 小成功（預設三件；多寫的話字小一點，放不下的以「還有 N 件」帶過）
+  const wins = day.wins.filter((t) => t.trim()).slice(0, 10);
+  const many = wins.length > 3;
   ctx.fillStyle = C.accent;
   ctx.font = `600 28px ${LATIN}`;
-  spaced(ctx, 'THREE LITTLE WINS', M, 560, 8);
+  spaced(ctx, many ? 'LITTLE WINS' : 'THREE LITTLE WINS', M, 560, 8);
+  const name = (day.name || '').trim();
+  if (name) {
+    ctx.fillStyle = C.ink2;
+    ctx.font = `500 30px ${SERIF}`;
+    spaced(ctx, `${name}${/[A-Za-z0-9]$/.test(name) ? ' ' : ''}的小成功`, W - M, 562, 4, 'right');
+  }
   let y = 650;
-  const fs = 50;
-  const lh = 80;
+  const fs = many ? 42 : 50;
+  const lh = many ? 66 : 80;
+  const gap = many ? 58 : 74;
+  const maxLines = many ? 2 : 4;
+  const limit = 1290;
   const textX = M + 104;
   const maxW = W - M - textX;
-  const wins = day.wins.filter((t) => t.trim()).slice(0, 3);
-  wins.forEach((t, i) => {
+  for (let i = 0; i < wins.length; i++) {
     ctx.font = `500 ${fs}px ${SERIF}`;
-    const measure = (s) => ctx.measureText(s).width + [...s].length * 2;
-    let lines = wrapText(t.trim(), maxW, measure);
-    if (lines.length > 4) lines = [...lines.slice(0, 3), `${lines[3].slice(0, -1)}⋯`];
+    const measure = (str) => ctx.measureText(str).width + [...str].length * 2;
+    let lines = wrapText(wins[i].trim(), maxW, measure);
+    if (lines.length > maxLines) lines = [...lines.slice(0, maxLines - 1), `${lines[maxLines - 1].slice(0, -1)}⋯`];
+    if (i > 0 && y + lines.length * lh > limit) {
+      ctx.fillStyle = C.ink2;
+      ctx.font = `500 ${Math.round(fs * 0.8)}px ${SERIF}`;
+      spaced(ctx, `＋ 還有 ${wins.length - i} 件小成功`, textX, y, 3);
+      y += lh;
+      break;
+    }
     ctx.fillStyle = C.accent;
-    ctx.font = `500 58px ${LATIN}`;
-    ctx.fillText(`0${i + 1}`, M, y + 4);
+    ctx.font = `500 ${many ? 48 : 58}px ${LATIN}`;
+    ctx.fillText(String(i + 1).padStart(2, '0'), M, y + 4);
     ctx.fillStyle = C.ink;
     ctx.font = `500 ${fs}px ${SERIF}`;
     lines.forEach((line, j) => spaced(ctx, line, textX, y + j * lh, 2));
-    y += lines.length * lh + 34;
+    y += lines.length * lh + (gap - 40);
     ctx.fillStyle = C.rule;
-    ctx.fillRect(M, y - 54, W - M * 2, 2);
+    ctx.fillRect(M, y - (gap - 20), W - M * 2, 2);
     y += 40;
-  });
+  }
 
   // 肯定語紙卡
   const cardTop = Math.max(y + 30, 1330);

@@ -4,7 +4,8 @@
 import { CHAKRAS } from './chakras.js';
 import { sanitizeBoard } from './board-core.js';
 
-export const ITEMS_PER_DAY = 3;
+export const ITEMS_PER_DAY = 3; // 每天預設三件
+export const MAX_ITEMS = 10; // 想多寫的話，最多可以加到十件
 export const BACKUP_APP_ID = 'success-journal';
 export const BACKUP_VERSION = 2;
 const MAX_IMAGE_DATA = 12 * 1024 * 1024;
@@ -78,12 +79,12 @@ export function formatDateZh(key) {
 
 /* ---------- 紀錄與統計 ---------- */
 
+/** 至少三格；第四件之後的空白格會被移除，最多十件 */
 export function cleanItems(items) {
-  const out = [];
-  for (let i = 0; i < ITEMS_PER_DAY; i++) {
-    const v = Array.isArray(items) ? items[i] : '';
-    out.push(typeof v === 'string' ? v : '');
-  }
+  const src = Array.isArray(items) ? items.slice(0, MAX_ITEMS) : [];
+  const out = src.map((v) => (typeof v === 'string' ? v : ''));
+  while (out.length > ITEMS_PER_DAY && !out[out.length - 1].trim()) out.pop();
+  while (out.length < ITEMS_PER_DAY) out.push('');
   return out;
 }
 
@@ -120,9 +121,9 @@ export function extractHashtags(text) {
   return out;
 }
 
-export function cleanTags(tags) {
+export function cleanTags(tags, count = ITEMS_PER_DAY) {
   const out = [];
-  for (let i = 0; i < ITEMS_PER_DAY; i++) {
+  for (let i = 0; i < Math.min(Math.max(count, ITEMS_PER_DAY), MAX_ITEMS); i++) {
     const list = Array.isArray(tags) && Array.isArray(tags[i]) ? tags[i] : [];
     out.push([...new Set(list.map(cleanTagName).filter(Boolean))].slice(0, 8));
   }
@@ -303,7 +304,7 @@ export function parseBackup(text) {
     if (!items.some((t) => t.trim())) continue;
     entries[key] = {
       items,
-      tags: cleanTags(entry.tags),
+      tags: cleanTags(entry.tags, items.length),
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
     };
   }
