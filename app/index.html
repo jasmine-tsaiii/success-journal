@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>成功日記</title>
   <meta name="description" content="願景板拼貼與成功日記：每天記錄三件成功小事，搭配溫柔的肯定語。資料只存在你的裝置。">
-  <meta name="theme-color" content="#F8F4EE">
+  <meta name="theme-color" content="#F3EBDF">
   <!-- 社群分享預覽（LINE、Facebook、IG 等）。換成自訂網域後，請把下面的網址一起改掉 -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="成功日記">
   <meta property="og:locale" content="zh_TW">
-  <meta property="og:title" content="成功日記｜看見夢想，也看見每天小小的成功">
+  <meta property="og:title" content="成功日記｜看見願景，也看見每天小小的成功">
   <meta property="og:description" content="願景板拼貼 × 每日三件成功小事，搭配溫柔的肯定語。不需帳號，資料只存在你的手機。">
   <meta property="og:url" content="https://jasmine-tsaiii.github.io/success-journal/">
   <meta property="og:image" content="https://jasmine-tsaiii.github.io/success-journal/og-image.png">
@@ -18,72 +18,76 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="成功日記：願景板拼貼與每日三件小成功">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="color-scheme" content="light">
+  <meta name="color-scheme" content="light dark">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-64.png" type="image/png" sizes="64x64">
   <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="成功日記">
+  <link rel="preload" href="fonts/noto-serif-tc-500.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    // 在畫面出現前套用外觀設定，避免閃爍
+    try {
+      var t = (JSON.parse(localStorage.getItem('success-journal.settings.v1') || '{}').theme) || 'auto';
+      if (t !== 'auto') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <div class="glow" aria-hidden="true"></div>
-
-  <header class="site-header">
-    <p class="eyebrow">Success Journal</p>
-    <h1 class="site-title">成功日記</h1>
-    <p class="site-sub">看見夢想，也看見每天小小的成功</p>
-  </header>
-
   <main id="main">
     <!-- 今日 -->
     <section id="view-today" class="view" aria-labelledby="tab-today" data-view="today">
-      <div class="date-nav">
+      <header class="mast">
+        <h1 class="mast-title">成功日記</h1>
+        <p class="mast-meta caps">Vision &amp; Wins<br><span id="issue-no"></span></p>
+      </header>
+      <p class="mast-sub">看見願景，也看見每天小小的成功</p>
+
+      <div class="date-row">
         <button type="button" class="icon-btn" id="prev-day" aria-label="前一天">‹</button>
-        <div class="date-nav-center">
-          <label class="date-label" for="date-picker">
-            <span id="current-date-text"></span>
-            <input type="date" id="date-picker" class="date-picker" aria-label="選擇日期">
-          </label>
-          <button type="button" class="text-btn" id="go-today" hidden>回到今天</button>
-        </div>
+        <label class="date-label" for="date-picker">
+          <span class="date-big" id="current-date-text"></span>
+          <span class="date-week caps" id="current-week"></span>
+          <input type="date" id="date-picker" class="date-picker" aria-label="選擇日期">
+        </label>
         <button type="button" class="icon-btn" id="next-day" aria-label="後一天">›</button>
       </div>
+      <button type="button" class="text-btn go-today" id="go-today" hidden>← 回到今天</button>
 
-      <article class="chakra-card" id="chakra-card">
-        <p class="eyebrow" id="chakra-en"></p>
-        <p class="affirmation-hero" id="chakra-affirmation"></p>
+      <article class="day-card" id="chakra-card">
+        <span class="tape" aria-hidden="true"></span>
+        <p class="label-caps" id="chakra-en"></p>
+        <p class="affirmation" id="chakra-affirmation"></p>
         <p class="chakra-tag">
-          <span class="chakra-dot" id="chakra-dot" aria-hidden="true"></span>
-          <span id="chakra-name"></span><span id="chakra-sep">・</span><span>今日色彩 <span id="chakra-color-name"></span></span>
+          <span class="swatch" id="chakra-dot" aria-hidden="true"></span>
+          <span>今日色彩・<span id="chakra-color-name"></span></span><span id="chakra-sep">｜</span><span id="chakra-name"></span>
         </p>
         <p class="chakra-theme" id="chakra-theme"></p>
-
-        <div class="chakra-block">
-          <p class="eyebrow">Journal Prompt</p>
-          <h3 class="block-title">今日引導</h3>
-          <p class="prompt-text" id="chakra-prompt"></p>
-        </div>
       </article>
 
-      <form class="entry-form" id="entry-form" autocomplete="off">
-        <p class="eyebrow">Three Little Wins</p>
+      <div class="prompt">
+        <p class="label-caps">Prompt</p>
+        <p class="prompt-text" id="chakra-prompt"></p>
+      </div>
+
+      <form class="wins" id="entry-form" autocomplete="off">
+        <p class="label-caps">Three Little Wins</p>
         <h2 class="section-title" id="entry-title">今天的三件成功小事</h2>
-        <p class="hint">再小的事都算數：準時起床、好好吃一頓飯、對自己說一句溫柔的話。</p>
-        <ol class="entry-list">
-          <li><label for="item-0" class="item-label">第一件</label><textarea id="item-0" rows="2" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
-          <li><label for="item-1" class="item-label">第二件</label><textarea id="item-1" rows="2" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
-          <li><label for="item-2" class="item-label">第三件</label><textarea id="item-2" rows="2" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
+        <ol class="win-list">
+          <li><span class="win-num" aria-hidden="true">01</span><label for="item-0" class="visually-hidden">第一件</label><textarea id="item-0" rows="1" maxlength="2000" placeholder="今天，我⋯⋯"></textarea></li>
+          <li><span class="win-num" aria-hidden="true">02</span><label for="item-1" class="visually-hidden">第二件</label><textarea id="item-1" rows="1" maxlength="2000" placeholder="再小的事都算數"></textarea></li>
+          <li><span class="win-num" aria-hidden="true">03</span><label for="item-2" class="visually-hidden">第三件</label><textarea id="item-2" rows="1" maxlength="2000" placeholder="對自己說一聲謝謝"></textarea></li>
         </ol>
         <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
       </form>
 
       <aside class="note-card">
-        <p class="eyebrow">Privacy</p>
+        <p class="label-caps">Privacy</p>
         <h2 class="note-title">你的日記只存在這台裝置</h2>
         <p>不需要帳號。你的日記、願景板和照片，只儲存在你目前使用的手機或電腦瀏覽器裡，不會上傳到任何伺服器，任何人（包括 Jasmine）都看不到。</p>
         <p>也因此，<strong>換手機、清除瀏覽器資料或刪除 App 之前，請先到「設定」下載備份檔</strong>，之後再匯入就能還原。</p>
@@ -93,14 +97,14 @@
 
     <!-- 願景板 -->
     <section id="view-dreams" class="view" aria-labelledby="tab-dreams" data-view="dreams" hidden>
+      <header class="mast">
+        <h1 class="mast-title">願景板</h1>
+        <p class="mast-meta caps">Vision<br>Board</p>
+      </header>
+
       <div id="boards-list">
-        <div class="panel">
-          <p class="eyebrow">Vision Board</p>
-          <h2 class="section-title">願景板</h2>
-          <p>把想要的生活，放在每天看得見的地方。放上照片、文字和小素材，自己拼貼，或交給「幫我排版」。完成後可以存成手機桌布。</p>
-          <button type="button" class="btn btn-primary" id="new-board">建立新的願景板</button>
-          <p class="small boards-empty" id="boards-empty">還沒有願景板。從寫下一個想要的畫面開始吧。</p>
-        </div>
+        <p class="lead">把想要的生活，放在每天看得見的地方。點照片格放上照片，完成後存成手機桌布。</p>
+        <button type="button" class="btn btn-primary" id="new-board">建立新的願景板</button>
         <div class="board-grid" id="board-grid"></div>
       </div>
 
@@ -112,49 +116,52 @@
 
         <div class="stage-wrap">
           <div class="board-stage" id="board-stage" aria-label="願景板畫布"></div>
-          <p class="stage-empty" id="stage-empty">從下方加入照片、文字或素材，<br>再按「幫我排版」。</p>
         </div>
 
         <div class="selection-bar" id="selection-bar" hidden>
-          <button type="button" data-act="bigger" aria-label="放大">放大</button>
-          <button type="button" data-act="smaller" aria-label="縮小">縮小</button>
+          <button type="button" data-act="photo" id="sel-photo">換照片</button>
+          <button type="button" data-act="edit" id="sel-edit">編輯文字</button>
+          <button type="button" data-act="bigger">放大</button>
+          <button type="button" data-act="smaller">縮小</button>
           <button type="button" data-act="rotl" aria-label="向左轉">↺</button>
           <button type="button" data-act="rotr" aria-label="向右轉">↻</button>
           <button type="button" data-act="front">移到最上層</button>
-          <button type="button" data-act="edit" id="sel-edit">編輯文字</button>
-          <button type="button" data-act="frame" id="sel-frame">相框</button>
+          <button type="button" data-act="frame" id="sel-frame">白框</button>
+          <button type="button" data-act="clear" id="sel-clear">移除照片</button>
           <button type="button" data-act="delete" class="danger">刪除</button>
           <button type="button" data-act="deselect">完成</button>
         </div>
-        <p class="small gesture-hint">小提示：用手指拖曳移動；兩指可以縮放與旋轉。</p>
+        <p class="small gesture-hint">點照片格加入照片・拖曳移動・兩指縮放與旋轉</p>
 
         <div class="tools" role="toolbar" aria-label="願景板工具">
-          <label class="tool" for="photo-input"><span class="tool-en">Photo</span>照片</label>
-          <input type="file" id="photo-input" accept="image/*" multiple class="visually-hidden">
+          <button type="button" class="tool" id="tool-photo"><span class="tool-en">Photo</span>照片</button>
           <button type="button" class="tool" data-panel="text" aria-expanded="false"><span class="tool-en">Words</span>文字</button>
-          <button type="button" class="tool" data-panel="sticker" aria-expanded="false"><span class="tool-en">Stickers</span>素材</button>
-          <button type="button" class="tool" data-panel="bg" aria-expanded="false"><span class="tool-en">Background</span>背景</button>
-          <button type="button" class="tool tool-magic" data-panel="layout" id="tool-layout" aria-expanded="false"><span class="tool-en">Arrange</span>幫我排版</button>
+          <button type="button" class="tool" data-panel="sticker" aria-expanded="false"><span class="tool-en">Elements</span>素材</button>
+          <button type="button" class="tool" data-panel="template" aria-expanded="false"><span class="tool-en">Layout</span>版型</button>
+          <button type="button" class="tool" data-panel="palette" aria-expanded="false"><span class="tool-en">Color</span>色調</button>
           <button type="button" class="tool" id="board-undo" disabled><span class="tool-en">Undo</span>復原</button>
         </div>
+        <input type="file" id="photo-input" accept="image/*" multiple class="visually-hidden" tabindex="-1">
 
         <div class="tool-panel" id="panel-text" hidden>
-          <textarea id="text-input" rows="2" maxlength="80" placeholder="寫下你的夢想、關鍵字或一句話"></textarea>
+          <textarea id="text-input" rows="2" maxlength="80" placeholder="寫下你的願景、關鍵字或一句話"></textarea>
           <div class="chip-row" id="text-style-chips" aria-label="文字樣式"></div>
           <button type="button" class="btn btn-primary" id="text-add">放上願景板</button>
-          <p class="small panel-label">靈感</p>
+          <p class="label-caps panel-label">Ideas</p>
           <div class="chip-row" id="word-ideas"></div>
         </div>
         <div class="tool-panel" id="panel-sticker" hidden>
           <div class="sticker-grid" id="sticker-grid"></div>
         </div>
-        <div class="tool-panel" id="panel-bg" hidden>
-          <div class="bg-grid" id="bg-grid"></div>
+        <div class="tool-panel" id="panel-template" hidden>
+          <div class="template-grid" id="template-grid"></div>
+          <p class="small">換版型時，照片和標題會自動搬過去；不喜歡可以按「復原」。</p>
         </div>
-        <div class="tool-panel" id="panel-layout" hidden>
-          <div class="chip-row" id="layout-chips" aria-label="排版風格"></div>
-          <button type="button" class="btn" id="layout-again">換一種排法</button>
-          <p class="small">每按一次都會重新排列；不喜歡可以按「復原」回到上一步，排好後也能再用手指微調。</p>
+        <div class="tool-panel" id="panel-palette" hidden>
+          <p class="label-caps">Light</p>
+          <div class="palette-row" id="palette-light"></div>
+          <p class="label-caps panel-label">Dark</p>
+          <div class="palette-row" id="palette-dark"></div>
         </div>
 
         <div class="editor-foot">
@@ -166,6 +173,12 @@
 
     <!-- 回顧 -->
     <section id="view-calendar" class="view" aria-labelledby="tab-calendar" data-view="calendar" hidden>
+      <header class="mast">
+        <h1 class="mast-title">回顧</h1>
+        <p class="mast-meta caps">Little Wins<br>Review</p>
+      </header>
+
+      <p class="label-caps">So Far</p>
       <div class="stats" id="stats">
         <div class="stat"><span class="stat-num" id="stat-streak">0</span><span class="stat-label">連續記錄天數</span></div>
         <div class="stat"><span class="stat-num" id="stat-items">0</span><span class="stat-label">累積成功件數</span></div>
@@ -173,11 +186,11 @@
       </div>
       <p class="stats-extra" id="stat-longest"></p>
 
-      <div class="calendar-card">
+      <div class="calendar">
         <div class="month-nav">
           <button type="button" class="icon-btn" id="prev-month" aria-label="上個月">‹</button>
           <div class="month-title-wrap">
-            <p class="eyebrow" id="month-en"></p>
+            <p class="caps month-en" id="month-en"></p>
             <h2 class="month-title" id="month-title"></h2>
           </div>
           <button type="button" class="icon-btn" id="next-month" aria-label="下個月">›</button>
@@ -186,7 +199,7 @@
           <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
         </div>
         <div class="calendar-grid" id="calendar-grid" role="grid" aria-label="月曆"></div>
-        <ul class="legend" id="legend" aria-label="脈輪顏色對照"></ul>
+        <ul class="legend" id="legend" aria-label="每日色彩對照"></ul>
       </div>
 
       <article class="day-detail" id="day-detail" hidden aria-live="polite"></article>
@@ -194,8 +207,13 @@
 
     <!-- 設定 -->
     <section id="view-data" class="view" aria-labelledby="tab-data" data-view="data" hidden>
+      <header class="mast">
+        <h1 class="mast-title">設定</h1>
+        <p class="mast-meta caps">Settings<br>&amp; Backup</p>
+      </header>
+
       <div class="panel">
-        <p class="eyebrow">Backup</p>
+        <p class="label-caps">Backup</p>
         <h2 class="section-title">備份與還原</h2>
         <p>日記、願景板與照片都只存在這台裝置。建議每隔一段時間下載一次備份檔，並存到雲端硬碟或寄給自己保存。</p>
         <div class="btn-stack">
@@ -208,8 +226,13 @@
       </div>
 
       <div class="panel">
-        <p class="eyebrow">Display</p>
-        <h2 class="section-title">顯示設定</h2>
+        <p class="label-caps">Appearance</p>
+        <h2 class="section-title">外觀</h2>
+        <div class="segmented" role="radiogroup" aria-label="外觀">
+          <label><input type="radio" name="theme" value="auto"><span>跟隨系統</span></label>
+          <label><input type="radio" name="theme" value="light"><span>淺色</span></label>
+          <label><input type="radio" name="theme" value="dark"><span>深色</span></label>
+        </div>
         <label class="switch-row">
           <input type="checkbox" id="setting-chakra">
           <span>在今日頁顯示脈輪名稱</span>
@@ -218,7 +241,7 @@
       </div>
 
       <div class="panel">
-        <p class="eyebrow">Add to Home Screen</p>
+        <p class="label-caps">Add to Home Screen</p>
         <h2 class="section-title">加到主畫面</h2>
         <button type="button" class="btn btn-primary" id="install-btn" hidden>安裝到主畫面</button>
         <h3 class="sub-title">iPhone／iPad（Safari）</h3>
@@ -237,7 +260,7 @@
       </div>
 
       <div class="panel">
-        <p class="eyebrow">About</p>
+        <p class="label-caps">About</p>
         <h2 class="section-title">關於這本日記</h2>
         <p>每天的色彩、引導問題與肯定語，靈感來自七大脈輪的色彩，依星期輪替：週一紅、週二橙、週三黃、週四綠、週五藍、週六靛、週日紫。</p>
         <p class="small">本 App 為自我覺察與書寫練習之用，不具醫療用途。</p>

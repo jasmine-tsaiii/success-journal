@@ -72,7 +72,9 @@ const shot = async (page, name) => {
 test('首頁顯示當日脈輪、引導問題、肯定語與隱私說明', async () => {
   const { context, page, errors } = await newPage();
   assert.equal(await page.title(), '成功日記');
-  assert.equal(await page.textContent('#current-date-text'), '2026 年 10 月 1 日（週四）');
+  assert.equal(await page.textContent('#current-date-text'), '2026.10.01');
+  assert.equal(await page.textContent('#current-week'), 'Thu · 週四');
+  assert.equal(await page.textContent('#issue-no'), 'No.274');
   assert.equal(await page.textContent('#chakra-name'), '心輪');
   assert.equal(await page.textContent('#chakra-color-name'), '綠色');
   assert.ok((await page.textContent('#chakra-prompt')).length > 5);
@@ -115,17 +117,17 @@ test('記錄、自動儲存、編輯過去、月曆回顧、匯出與匯入', as
   assert.equal(await page.textContent('#month-title'), '2026 年 10 月');
   const todayCell = page.locator('.cal-cell[data-date="2026-10-01"]');
   assert.match(await todayCell.getAttribute('class'), /recorded/);
-  assert.equal(await todayCell.evaluate((el) => el.style.getPropertyValue('--dot')), '#7FB08C'); // 心輪綠
+  assert.equal(await todayCell.evaluate((el) => el.style.getPropertyValue('--dot')), '#6F9478'); // 心輪綠
   await page.click('#prev-month');
   const yCell = page.locator('.cal-cell[data-date="2026-09-30"]');
-  assert.equal(await yCell.evaluate((el) => el.style.getPropertyValue('--dot')), '#D9B44A'); // 太陽神經叢輪黃
+  assert.equal(await yCell.evaluate((el) => el.style.getPropertyValue('--dot')), '#BF9B43'); // 太陽神經叢輪黃
   await yCell.click();
   assert.match(await page.textContent('#day-detail'), /完成一份報告/);
   await shot(page, '02-calendar');
 
   // 從回顧編輯過去的某天
   await page.click('#edit-day');
-  assert.equal(await page.textContent('#current-date-text'), '2026 年 9 月 30 日（週三）');
+  assert.equal(await page.textContent('#current-date-text'), '2026.09.30');
   await page.fill('#item-1', '早點睡覺');
   await page.locator('#item-1').blur();
 
@@ -196,7 +198,8 @@ test('PWA：manifest、圖示與離線開啟', async () => {
 
   await context.setOffline(true);
   await page.reload();
-  assert.equal(await page.textContent('.site-title'), '成功日記');
+  assert.equal(await page.textContent('#view-today .mast-title'), '成功日記');
+  assert.ok(await page.evaluate(() => document.fonts.check("500 16px 'SJ Serif'", '成功')), '離線時內建字型也要能載入');
   assert.equal(await page.inputValue('#item-0'), '離線也能寫');
   assert.ok((await page.textContent('#chakra-name')).length > 0);
   await context.close();
@@ -239,90 +242,98 @@ async function makePhotos(page) {
 const boxOf = (page, sel) => page.locator(sel).first().evaluate((el) => ({ left: el.style.left, top: el.style.top, width: el.style.width }));
 const pngSize = (buf) => [buf.readUInt32BE(16), buf.readUInt32BE(20)];
 
-test('願景板：加入照片、文字、素材，自動排版、手動調整、復原、存成桌布、備份還原', async () => {
+const boardsInStorage = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.boards.v1')));
+
+test('願景板：預設封面、點照片格加照片、版型、色調、文字、素材、調整、復原、存成桌布、備份還原', async () => {
   const { context, page, errors } = await newPage();
+
+  // 第一次進來：直接開一張預設的封面願景板
   await page.click('#tab-dreams');
-  assert.equal(await page.isVisible('#boards-empty'), true);
-  await page.click('#new-board');
   assert.equal(await page.isVisible('#board-editor'), true);
   assert.equal(await page.inputValue('#board-title'), '我的願景板');
-  assert.equal(await page.isVisible('#stage-empty'), true);
+  assert.equal(await page.getAttribute('#board-stage', 'data-palette'), 'rose');
+  assert.equal(await page.locator('#board-stage .empty-slot').count(), 1);
+  assert.match(await page.textContent('#board-stage'), /2027 的我/);
 
-  // 照片
-  await page.setInputFiles('#photo-input', await makePhotos(page));
+  // 點空白照片格 → 開啟相簿，一次選 3 張：1 張進格子，2 張放旁邊
+  const photos = await makePhotos(page);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#board-stage .empty-slot')]);
+  await chooser.setFiles(photos);
   await page.waitForFunction(() => {
-    const imgs = document.querySelectorAll('#board-stage .type-photo img');
-    return imgs.length === 3 && [...imgs].every((i) => i.complete && i.naturalWidth > 0);
+    const imgs = [...document.querySelectorAll('#board-stage .type-photo img')];
+    return imgs.length === 3 && imgs.every((i) => i.complete && i.naturalWidth > 0);
   });
-  assert.equal(await page.isVisible('#stage-empty'), false);
+  assert.equal(await page.locator('#board-stage .empty-slot').count(), 0);
+  assert.match(await page.textContent('#toast'), /右下角/);
 
-  // 文字卡（點靈感、選柔光樣式）
+  // 換成格狀版型：3 張照片都進格子
+  await page.click('.tool[data-panel="template"]');
+  await page.click('.template-btn[data-template="grid"]');
+  let board = (await boardsInStorage(page))[0];
+  assert.equal(board.template, 'grid');
+  assert.equal(board.items.filter((i) => i.type === 'photo' && i.tpl && i.imageId).length, 3);
+  assert.equal(await page.locator('#board-stage .empty-slot').count(), 3);
+  await shot(page, '10-board-grid');
+
+  // 色調：深色星夜
+  await page.click('.tool[data-panel="palette"]');
+  assert.equal(await page.locator('#palette-light .palette-btn').count(), 6);
+  assert.equal(await page.locator('#palette-dark .palette-btn').count(), 4);
+  await page.click('.palette-btn[data-palette="starry"]');
+  assert.equal(await page.getAttribute('#board-stage', 'data-palette'), 'starry');
+  assert.equal(await page.locator('#board-stage .board-stars').count(), 1);
+
+  // 回到封面，加上文字（英文斜體）與素材
+  await page.click('.tool[data-panel="template"]');
+  await page.click('.template-btn[data-template="cover"]');
   await page.click('.tool[data-panel="text"]');
-  await page.click('#word-ideas .chip >> text=一步一步，我正在靠近夢想');
-  await page.click('#text-style-chips .chip >> text=柔光');
+  await page.click('#word-ideas .chip >> text=good things are coming');
   await page.click('#text-add');
-  assert.match(await page.textContent('#board-stage .type-text'), /一步一步/);
-  assert.match(await page.getAttribute('#board-stage .type-text', 'class'), /style-glow/);
-
-  // 素材
+  assert.equal(await page.locator('#board-stage .style-en', { hasText: 'good things are coming' }).count(), 1);
   await page.click('.tool[data-panel="sticker"]');
-  await page.click('.sticker-btn[data-sticker="heart"]');
-  await page.click('.sticker-btn[data-sticker="sparkle"]');
-  assert.equal(await page.locator('#board-stage .type-sticker').count(), 2);
+  await page.click('.sticker-btn[data-sticker="leaf"]');
+  await page.click('.sticker-btn[data-sticker="stamp-ring"]');
+  assert.equal(await page.locator('#board-stage .type-sticker').count(), 4); // 版型的膠帶、印章 + 2
 
-  // 幫我排版
-  const before = await boxOf(page, '#board-stage .type-photo');
-  await page.click('#tool-layout');
-  assert.equal(await page.isVisible('#panel-layout'), true);
-  const after = await boxOf(page, '#board-stage .type-photo');
-  assert.notDeepEqual(after, before);
-  await page.click('#layout-chips .chip >> text=整齊網格');
-  await page.click('#layout-chips .chip >> text=主角置中');
-  await page.click('#layout-again');
-  await shot(page, '10-board-arranged');
-
-  // 復原回到上一步的排版
-  const beforeUndo = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.boards.v1'))[0].items);
-  await page.click('#board-undo');
-  const afterUndo = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.boards.v1'))[0].items);
-  assert.notDeepEqual(afterUndo, beforeUndo);
+  // 編輯標題
+  await page.locator('#board-stage').scrollIntoViewIfNeeded();
+  await page.click('#board-stage .board-item[data-id] >> text=2027 的我');
+  await page.click('#sel-edit');
+  await page.fill('#text-input', '溫柔的一年');
+  await page.click('#text-add');
+  board = (await boardsInStorage(page))[0];
+  const title = board.items.find((i) => i.role === 'title');
+  assert.equal(title.text, '溫柔的一年');
+  assert.equal(title.edited, true);
 
   // 拖曳移動
-  const sticker = page.locator('#board-stage .type-sticker').first();
-  const id = await sticker.getAttribute('data-id');
+  const leaf = page.locator('#board-stage .type-sticker').last();
+  const id = await leaf.getAttribute('data-id');
   await page.locator('#board-stage').scrollIntoViewIfNeeded();
-  const sb = await sticker.boundingBox();
-  const start = await page.evaluate((id) => JSON.parse(localStorage.getItem('success-journal.boards.v1'))[0].items.find((i) => i.id === id), id);
-  await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+  const lb = await leaf.boundingBox();
+  const start = (await boardsInStorage(page))[0].items.find((i) => i.id === id);
+  await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2);
   await page.mouse.down();
-  await page.mouse.move(sb.x + sb.width / 2 + 40, sb.y + sb.height / 2 + 30, { steps: 5 });
+  await page.mouse.move(lb.x + lb.width / 2 - 40, lb.y + lb.height / 2 - 30, { steps: 5 });
   await page.mouse.up();
-  const moved = await page.evaluate((id) => JSON.parse(localStorage.getItem('success-journal.boards.v1'))[0].items.find((i) => i.id === id), id);
-  assert.ok(moved.x > start.x + 50 && moved.y > start.y + 40, '拖曳後位置要改變並儲存');
-  assert.equal(await page.isVisible('#selection-bar'), true);
+  const moved = (await boardsInStorage(page))[0].items.find((i) => i.id === id);
+  assert.ok(moved.x < start.x - 50 && moved.y < start.y - 40, '拖曳後位置要改變並儲存');
 
   // 放大、刪除與復原
   await page.click('#selection-bar [data-act="bigger"]');
-  const bigger = await page.evaluate((id) => JSON.parse(localStorage.getItem('success-journal.boards.v1'))[0].items.find((i) => i.id === id), id);
-  assert.ok(bigger.w > moved.w);
+  assert.ok((await boardsInStorage(page))[0].items.find((i) => i.id === id).w > moved.w);
+  const count = await page.locator('#board-stage .board-item').count();
   await page.click('#selection-bar [data-act="delete"]');
-  assert.equal(await page.locator('#board-stage .type-sticker').count(), 1);
+  assert.equal(await page.locator('#board-stage .board-item').count(), count - 1);
   await page.click('#board-undo');
-  assert.equal(await page.locator('#board-stage .type-sticker').count(), 2);
+  assert.equal(await page.locator('#board-stage .board-item').count(), count);
 
-  // 編輯文字
-  await page.click('#board-stage .type-text');
-  await page.click('#sel-edit');
-  await page.fill('#text-input', '2027 去京都');
-  await page.click('#text-add');
-  assert.match(await page.textContent('#board-stage .type-text'), /2027 去京都/);
+  // 換照片：選取封面照片 → 換照片
+  await page.click('#board-stage .board-item.type-photo >> nth=0', { position: { x: 20, y: 20 } });
+  assert.equal(await page.textContent('#sel-photo'), '換照片');
 
-  // 背景與名稱
-  await page.click('.tool[data-panel="bg"]');
-  await page.click('.bg-btn[data-bg="dawn"]');
-  assert.equal(await page.getAttribute('#board-stage', 'data-bg'), 'dawn');
   await page.fill('#board-title', '2027 的我');
-  await page.click('#board-stage', { position: { x: 5, y: 5 } }); // 點空白處取消選取
+  await page.click('#board-stage', { position: { x: 3, y: 3 } });
   await shot(page, '11-board-editor');
 
   // 存成桌布
@@ -336,16 +347,19 @@ test('願景板：加入照片、文字、素材，自動排版、手動調整�
   await page.reload();
   await page.click('#tab-dreams');
   assert.equal(await page.textContent('.board-card-title'), '2027 的我');
-  await page.click('.board-card');
+  await page.click('#new-board');
+  assert.equal(await page.inputValue('#board-title'), '我的願景板 2');
+  await page.click('#board-back');
+  assert.equal(await page.locator('.board-card').count(), 2);
+  await page.click('.board-card:has(.board-card-title:text-is("2027 的我"))');
   await page.waitForFunction(() => [...document.querySelectorAll('#board-stage .type-photo img')].every((i) => i.naturalWidth > 0));
-  assert.equal(await page.locator('#board-stage .board-item').count(), 6);
 
   // 備份（含照片）→ 清空 → 還原
   await page.click('#tab-data');
   const [jsonDl] = await Promise.all([page.waitForEvent('download'), page.click('#export-json')]);
   const backup = JSON.parse(await readFile(await jsonDl.path(), 'utf8'));
   assert.equal(backup.version, 2);
-  assert.equal(backup.boards.length, 1);
+  assert.equal(backup.boards.length, 2);
   assert.equal(Object.keys(backup.images).length, 3);
 
   await page.evaluate(async () => {
@@ -356,22 +370,24 @@ test('願景板：加入照片、文字、素材，自動排版、手動調整�
     });
   });
   await page.reload();
-  await page.click('#tab-dreams');
-  assert.equal(await page.locator('.board-card').count(), 0);
-  await page.click('#tab-data');
   page.once('dialog', (d) => d.accept());
+  await page.click('#tab-data');
   await page.setInputFiles('#import-file', await jsonDl.path());
-  await page.waitForFunction(() => document.getElementById('toast').textContent.includes('1 個願景板'));
+  await page.waitForFunction(() => document.getElementById('toast').textContent.includes('2 個願景板'));
   await page.click('#tab-dreams');
-  await page.click('.board-card');
+  await page.click('.board-card:has(.board-card-title:text-is("2027 的我"))');
   await page.waitForFunction(() => {
     const imgs = [...document.querySelectorAll('#board-stage .type-photo img')];
     return imgs.length === 3 && imgs.every((i) => i.naturalWidth > 0);
   });
+  assert.equal(await page.getAttribute('#board-stage', 'data-palette'), 'starry');
 
-  // 刪除願景板
-  page.once('dialog', (d) => d.accept());
-  await page.click('#board-delete');
+  // 刪除兩個願景板後，照片也清掉
+  for (let i = 0; i < 2; i++) {
+    if (await page.isVisible('#boards-list')) await page.click('.board-card >> nth=0');
+    page.once('dialog', (d) => d.accept());
+    await page.click('#board-delete');
+  }
   assert.equal(await page.locator('.board-card').count(), 0);
   const countImages = () =>
     page.evaluate(
@@ -395,6 +411,19 @@ test('願景板：加入照片、文字、素材，自動排版、手動調整�
   await context.close();
 });
 
+test('外觀：可以切換深色模式，重新整理後仍保留', async () => {
+  const { context, page } = await newPage();
+  const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  assert.equal(await bg(), 'rgb(243, 235, 223)');
+  await page.click('#tab-data');
+  await page.click('.segmented label:has-text("深色")');
+  assert.equal(await bg(), 'rgb(29, 34, 56)');
+  await page.reload();
+  assert.equal(await page.getAttribute('html', 'data-theme'), 'dark');
+  await shot(page, '13-today-dark');
+  await context.close();
+});
+
 test('設定：可以關閉脈輪名稱，只保留色彩與肯定語', async () => {
   const { context, page } = await newPage();
   assert.equal(await page.textContent('#chakra-name'), '心輪');
@@ -402,7 +431,7 @@ test('設定：可以關閉脈輪名稱，只保留色彩與肯定語', async ()
   await page.uncheck('#setting-chakra');
   await page.click('#tab-today');
   assert.equal(await page.isHidden('#chakra-name'), true);
-  assert.match(await page.textContent('.chakra-tag'), /今日色彩 綠色/);
+  assert.match(await page.textContent('.chakra-tag'), /今日色彩・綠色/);
   assert.ok((await page.textContent('#chakra-affirmation')).length > 5);
   await page.reload();
   assert.equal(await page.isHidden('#chakra-name'), true);

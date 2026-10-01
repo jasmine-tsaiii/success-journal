@@ -2,14 +2,15 @@
   "name": "success-journal",
   "version": "1.0.0",
   "private": true,
-  "description": "成功日記 — 每日記錄三件成功小事，搭配脈輪主題與肯定語的 PWA",
+  "description": "成功日記 — 願景板與每日三件成功小事的 PWA",
   "type": "module",
   "scripts": {
     "start": "npx --yes serve app -l 8080",
     "test": "node --test tests/core.test.mjs tests/board.test.mjs",
     "test:e2e": "node --test tests/e2e.test.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "og": "node scripts/make-og.mjs"
+    "og": "node scripts/make-og.mjs",
+    "fonts": "python3 scripts/make-fonts.py"
   },
   "devDependencies": {
     "playwright": "^1.56.1"

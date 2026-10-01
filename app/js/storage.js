@@ -52,7 +52,7 @@ export function saveBoards(boards) {
   localStorage.setItem(BOARDS_KEY, JSON.stringify(boards));
 }
 
-export const DEFAULT_SETTINGS = { showChakra: true };
+export const DEFAULT_SETTINGS = { showChakra: true, theme: 'auto' };
 
 export function loadSettings() {
   return { ...DEFAULT_SETTINGS, ...loadJson(SETTINGS_KEY, {}) };

@@ -1,90 +1,94 @@
-// 產生社群分享預覽圖 app/og-image.png（1200 × 630）。
-// 用法：node scripts/make-og.mjs（需要 Playwright、Chromium 與網路，用來載入思源宋體；字型只用於產生圖片，不會放進 App）
+// 產生社群分享預覽圖 app/og-image.png（1200 × 630），使用 app/fonts 內建字型。
+// 用法：node scripts/make-og.mjs（需要 Playwright 與 Chromium）
 
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { chromium } from 'playwright';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'app', 'og-image.png');
+const font = async (name) => (await readFile(join(root, 'app', 'fonts', name))).toString('base64');
+
+const [s500, s700, l500, l500i] = await Promise.all(
+  ['noto-serif-tc-500.woff2', 'noto-serif-tc-700.woff2', 'cormorant-500.woff2', 'cormorant-500-italic.woff2'].map(font),
+);
+
+const BG = '#F3EBDF';
+const INK = '#2E2520';
+const ROSE = { block: '#E3D1CC', accent: '#94706B' };
+const SAGE = '#6F9478';
+const GRAIN = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.2  0 0 0 0.12 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")`;
 
 const html = `<!doctype html>
-<html><head><meta charset="utf-8">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600&family=Cormorant+Garamond:ital,wght@1,500&display=block">
-<style>
+<html><head><meta charset="utf-8"><style>
+  @font-face { font-family: 'S'; src: url(data:font/woff2;base64,${s500}); font-weight: 500; }
+  @font-face { font-family: 'S'; src: url(data:font/woff2;base64,${s700}); font-weight: 700; }
+  @font-face { font-family: 'L'; src: url(data:font/woff2;base64,${l500}); }
+  @font-face { font-family: 'L'; src: url(data:font/woff2;base64,${l500i}); font-style: italic; }
   * { box-sizing: border-box; margin: 0; }
-  body {
-    width: 1200px; height: 630px; overflow: hidden; position: relative;
-    font-family: 'Noto Serif TC', serif; color: #4a4250;
-    background:
-      radial-gradient(circle at 8% 0%, rgba(217,205,234,0.95), transparent 55%),
-      radial-gradient(circle at 100% 100%, rgba(243,214,223,0.95), transparent 55%),
-      radial-gradient(circle at 75% 10%, rgba(236,226,244,0.8), transparent 45%),
-      #f8f4ee;
-  }
-  .en { font-family: 'Cormorant Garamond', serif; font-style: italic; letter-spacing: 0.28em; text-transform: uppercase; color: #9a86b8; }
-  .left { position: absolute; left: 92px; top: 0; bottom: 0; width: 560px; display: flex; flex-direction: column; justify-content: center; }
-  .left .en { font-size: 22px; margin-bottom: 18px; }
-  h1 { font-weight: 500; font-size: 92px; letter-spacing: 0.24em; line-height: 1.15; }
-  .sub { font-size: 30px; letter-spacing: 0.12em; color: #5d5463; margin-top: 26px; line-height: 1.6; }
-  .tags { display: flex; gap: 14px; margin-top: 40px; }
-  .tag { font-size: 21px; letter-spacing: 0.1em; padding: 9px 22px; border-radius: 999px; background: rgba(255,253,249,0.75); border: 1px solid rgba(154,134,184,0.35); color: #6c6274; }
-  .dots { display: flex; gap: 10px; margin-top: 42px; }
-  .dots i { width: 12px; height: 12px; border-radius: 50%; display: block; }
-
-  .board { position: absolute; right: 70px; top: 50px; width: 400px; height: 530px; }
-  .card { position: absolute; background: #fffdf9; box-shadow: 0 18px 40px -16px rgba(90,70,110,0.45); }
-  .photo { padding: 12px; }
-  .photo div { width: 100%; height: 100%; }
-  .p1 { width: 210px; height: 250px; left: 0; top: 18px; transform: rotate(-7deg); }
-  .p1 div { background: linear-gradient(160deg, #c9daf0 0%, #e6dcf3 55%, #f6d9c8 100%); }
-  .p2 { width: 230px; height: 200px; left: 160px; top: 0; transform: rotate(5deg); }
-  .p2 div { background: linear-gradient(170deg, #f3c9d6, #d9c3ea); }
-  .p3 { width: 200px; height: 220px; left: 190px; top: 250px; transform: rotate(-4deg); }
-  .p3 div { background: linear-gradient(200deg, #cfe5cf, #f6efd8); }
-  .sun { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.75); }
-  .note { left: 10px; top: 300px; width: 230px; padding: 22px 24px; transform: rotate(3deg); border-radius: 10px; }
-  .note .en { font-size: 13px; letter-spacing: 0.2em; margin-bottom: 8px; }
-  .note p { white-space: nowrap; font-size: 19px; line-height: 1.75; letter-spacing: 0.06em; color: #5d5463; }
-  .note p span { color: #a985c6; margin-right: 8px; font-family: 'Cormorant Garamond', serif; font-style: italic; }
-  .quote { left: 120px; top: 205px; padding: 16px 26px; border-radius: 12px; transform: rotate(-3deg);
-           background: linear-gradient(120deg, #e6daf3, #f7dce5); font-size: 22px; letter-spacing: 0.1em; white-space: nowrap; }
-  .sticker { position: absolute; }
+  body { width: 1200px; height: 630px; overflow: hidden; position: relative; background: ${BG}; color: ${INK}; font-family: 'S', serif; font-weight: 500; }
+  body::after { content: ''; position: absolute; inset: 0; background-image: ${GRAIN}; mix-blend-mode: multiply; opacity: .7; }
+  .caps { font-family: 'L', serif; text-transform: uppercase; letter-spacing: .28em; }
+  .it { font-family: 'L', serif; font-style: italic; }
+  .left { position: absolute; left: 84px; top: 58px; width: 600px; }
+  .mast { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid ${INK}; padding-bottom: 14px; }
+  h1 { font-weight: 700; font-size: 80px; letter-spacing: .2em; line-height: 1.1; white-space: nowrap; }
+  .meta { font-size: 15px; text-align: right; line-height: 1.7; }
+  .sub { font-size: 27px; letter-spacing: .16em; margin-top: 22px; }
+  .card { position: relative; margin-top: 40px; background: color-mix(in srgb, ${SAGE} 24%, ${BG}); padding: 30px 30px 24px; }
+  .tape { position: absolute; left: 50%; top: -14px; width: 120px; height: 28px; margin-left: -60px; background: rgba(214,186,150,.75); transform: rotate(-2deg); }
+  .lab { font-size: 14px; color: #A85A38; font-weight: 600; }
+  .aff { font-size: 30px; letter-spacing: .06em; line-height: 1.6; margin-top: 6px; }
+  .wins { margin-top: 14px; font-size: 22px; line-height: 1.95; letter-spacing: .06em; }
+  .wins b { font-family: 'L', serif; font-weight: 500; color: #A85A38; font-size: 24px; margin-right: 18px; }
+  .board { position: absolute; right: 86px; top: 46px; width: 302px; height: 537px; background: ${BG}; overflow: hidden; box-shadow: 0 26px 50px -26px rgba(50,35,25,.6); transform: rotate(2.5deg); }
+  .band { position: absolute; left: 0; right: 0; top: 0; height: 212px; background: ${ROSE.block}; }
+  .photo { position: absolute; left: 35px; right: 35px; top: 48px; height: 252px; box-shadow: 0 12px 22px -12px rgba(40,28,20,.6);
+           background: linear-gradient(180deg,#cfd9df 0%,#e8e2d6 50%,#8fa9b5 52%,#b9c7c9 74%,#e5d8c3 76%,#d8c4a8 100%); }
+  .sun { position: absolute; right: 50px; top: 60px; width: 46px; height: 46px; border-radius: 50%; background: rgba(255,250,235,.9); }
+  .btape { position: absolute; left: 50%; top: 40px; width: 72px; height: 16px; margin-left: -36px; background: rgba(255,250,240,.65); transform: rotate(-3deg); }
+  .k { position: absolute; top: 18px; font-size: 8px; }
+  .title { position: absolute; left: 20px; top: 322px; font-size: 36px; letter-spacing: .1em; }
+  .en { position: absolute; left: 22px; top: 374px; font-size: 11px; letter-spacing: .14em; color: ${ROSE.accent}; }
+  .rule { position: absolute; left: 20px; top: 404px; width: 38px; height: 3px; background: ${ROSE.accent}; }
+  .li { position: absolute; left: 20px; top: 420px; font-size: 11px; line-height: 2.2; letter-spacing: .08em; }
+  .li b { font-family: 'L', serif; color: ${ROSE.accent}; margin-right: 8px; font-weight: 500; }
+  .stamp { position: absolute; right: 16px; bottom: 16px; width: 74px; height: 74px; border-radius: 50%; background: ${ROSE.accent}; color: ${BG};
+           display: grid; place-items: center; font-weight: 700; font-size: 22px; transform: rotate(-8deg); }
 </style></head>
 <body>
   <div class="left">
-    <p class="en">Vision Board · Success Journal</p>
-    <h1>成功日記</h1>
-    <p class="sub">看見夢想，<br>也看見每天小小的成功</p>
-    <div class="tags"><span class="tag">願景板拼貼</span><span class="tag">每日三件小成功</span></div>
-    <div class="dots">
-      <i style="background:#C96B6B"></i><i style="background:#DA9563"></i><i style="background:#D9B44A"></i><i style="background:#7FB08C"></i><i style="background:#6F9FC8"></i><i style="background:#7A7CBF"></i><i style="background:#A985C6"></i>
+    <div class="mast"><h1>成功日記</h1><p class="meta caps">Vision<br>&amp; Wins</p></div>
+    <p class="sub">看見願景，也看見每天小小的成功</p>
+    <div class="card">
+      <span class="tape"></span>
+      <p class="lab caps">Three Little Wins</p>
+      <div class="wins">
+        <p><b>01</b>準時起床，喝一杯溫水</p>
+        <p><b>02</b>對自己說聲謝謝</p>
+        <p><b>03</b>往願景走了一小步</p>
+      </div>
     </div>
   </div>
-
   <div class="board">
-    <div class="card photo p1"><div></div><span class="sun" style="width:44px;height:44px;left:120px;top:44px"></span></div>
-    <div class="card photo p2"><div></div><span class="sun" style="width:36px;height:36px;left:150px;top:36px"></span></div>
-    <div class="card photo p3"><div></div><span class="sun" style="width:40px;height:40px;left:110px;top:40px"></span></div>
-    <div class="card note">
-      <p class="en">Three Little Wins</p>
-      <p><span>1.</span>早起喝一杯溫水</p>
-      <p><span>2.</span>對自己說謝謝</p>
-      <p><span>3.</span>往夢想走一小步</p>
-    </div>
-    <div class="card quote">我正在靠近夢想</div>
-    <svg class="sticker" style="left:360px;top:180px;width:64px" viewBox="0 0 100 100"><path d="M50 6 C54 34 66 46 94 50 C66 54 54 66 50 94 C46 66 34 54 6 50 C34 46 46 34 50 6Z" fill="#C9B6E3"/></svg>
-    <svg class="sticker" style="left:-30px;top:-10px;width:46px" viewBox="0 0 100 100"><path d="M50 6 C54 34 66 46 94 50 C66 54 54 66 50 94 C46 66 34 54 6 50 C34 46 46 34 50 6Z" fill="#EFC3D3"/></svg>
-    <svg class="sticker" style="left:330px;top:465px;width:56px;transform:rotate(12deg)" viewBox="0 0 100 100"><path d="M50 88 C20 66 8 50 8 33 C8 19 19 10 31 10 C40 10 46 15 50 22 C54 15 60 10 69 10 C81 10 92 19 92 33 C92 50 80 66 50 88Z" fill="#EFB7C8"/></svg>
+    <div class="band"></div>
+    <p class="k caps" style="left:20px">Vision Board</p>
+    <p class="k caps" style="right:20px">No.01 — 2027</p>
+    <div class="photo"><span class="sun"></span></div>
+    <span class="btape"></span>
+    <p class="title">2027 的我</p>
+    <p class="en it">a warm, abundant year</p>
+    <span class="rule"></span>
+    <div class="li"><p><b>01</b>去一直想去的地方</p><p><b>02</b>好好吃早餐</p><p><b>03</b>溫柔而堅定地生活</p></div>
+    <div class="stamp">願</div>
   </div>
 </body></html>`;
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
-await page.setContent(html, { waitUntil: 'networkidle' });
+await page.setContent(html);
 await page.evaluate(() => document.fonts.ready);
-const ok = await page.evaluate(() => document.fonts.check('500 92px "Noto Serif TC"', '成功日記'));
-if (!ok) throw new Error('思源宋體載入失敗，請確認網路連線');
 await page.screenshot({ path: out });
 await browser.close();
 console.log(`✓ ${out}`);
