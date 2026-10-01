@@ -89,6 +89,11 @@ npm run test:e2e     # 以 Chromium 測試主要流程（含 /success-journal/ �
 npm run icons        # 修改 app/icons/icon.svg 後重新產生 PNG 圖示
 ```
 
+### 社群分享預覽圖
+
+分享連結到 LINE、Facebook 時顯示的預覽圖是 `app/og-image.png`（1200 × 630），由 `npm run og` 產生（需要網路來載入思源宋體，字型只用於產生圖片）。
+**換成自訂網域後**，請把 `app/index.html` 中 `og:url` 與 `og:image` 的網址改成新網域。LINE、Facebook 會快取舊的預覽，可用 [Facebook 分享偵錯工具](https://developers.facebook.com/tools/debug/) 重新抓取。
+
 ### 修改內建素材與文字靈感
 
 夢想板的貼紙與靈感詞句在 `app/js/stickers.js`。貼紙是 `viewBox="0 0 100 100"` 的 SVG，新增一筆即可出現在「素材」中。
