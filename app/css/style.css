@@ -46,6 +46,10 @@
   --tape: rgba(214, 186, 150, 0.72);
   --day: #6f9478;
   --day-mix: 24%;
+  /* 淺色：米白紙卡＋當日色條；深色：當日色彩融入夜空 */
+  --day-card-bg: #fbf7f0;
+  --day-card-top: 6px;
+  --day-label: var(--day);
   --shadow: 0 18px 36px -24px rgba(50, 35, 25, 0.55);
   --grain-opacity: 0.55;
   --grain-blend: multiply;
@@ -72,6 +76,9 @@
     --on-ink: #1d2238;
     --tape: rgba(217, 184, 113, 0.32);
     --day-mix: 32%;
+    --day-card-bg: color-mix(in srgb, var(--day) 32%, var(--bg));
+    --day-card-top: 0px;
+    --day-label: var(--accent);
     --shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.8);
     --grain-opacity: 0.35;
     --grain-blend: screen;
@@ -91,6 +98,9 @@
   --on-ink: #1d2238;
   --tape: rgba(217, 184, 113, 0.32);
   --day-mix: 32%;
+  --day-card-bg: color-mix(in srgb, var(--day) 32%, var(--bg));
+  --day-card-top: 0px;
+  --day-label: var(--accent);
   --shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.8);
   --grain-opacity: 0.35;
   --grain-blend: screen;
@@ -334,7 +344,13 @@ main {
   position: relative;
   margin-top: 22px;
   padding: 28px 22px 20px;
-  background: color-mix(in srgb, var(--day) var(--day-mix), var(--bg));
+  background: var(--day-card-bg);
+  border-top: var(--day-card-top) solid var(--day);
+}
+
+.day-card .label-caps,
+.day-detail .label-caps {
+  color: var(--day-label);
 }
 
 .tape {
@@ -706,7 +722,8 @@ textarea:focus {
 .day-detail {
   margin-top: 24px;
   padding: 22px 20px;
-  background: color-mix(in srgb, var(--day) var(--day-mix), var(--bg));
+  background: var(--day-card-bg);
+  border-top: var(--day-card-top) solid var(--day);
 }
 
 .day-detail .section-title {
