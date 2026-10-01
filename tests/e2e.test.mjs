@@ -91,7 +91,7 @@ test('首頁顯示當日脈輪、引導問題、肯定語與隱私說明', async
   assert.equal(await page.textContent('#chakra-color-name'), '綠色');
   assert.ok((await page.textContent('#chakra-prompt')).length > 5);
   assert.ok((await page.textContent('#chakra-affirmation')).length > 5);
-  assert.match(await page.textContent('.note-card'), /只存在本機[\s\S]*備份/);
+  assert.match(await page.textContent('.note-card'), /還沒登入[\s\S]*Google 帳號登入/);
   assert.ok(await page.isDisabled('#next-day'), '不能前往未來的日期');
   await shot(page, '01-today');
   assert.deepEqual(errors, []);
@@ -550,7 +550,7 @@ test('新手引導：第一次打開顯示三步驟，完成後不再出現；�
   await page.click('#ob-next');
   assert.match(await page.textContent('#onboarding .ob-step:not([hidden]) .ob-title'), /把願景放在眼前/);
   await page.click('#ob-next');
-  assert.match(await page.textContent('#onboarding .ob-step:not([hidden]) .ob-title'), /日記只存在這台手機/);
+  assert.match(await page.textContent('#onboarding .ob-step:not([hidden]) .ob-title'), /登入，日記就不怕弄丟/);
   assert.ok((await page.textContent('#ob-install')).length > 10);
   assert.equal(await page.textContent('#ob-next'), '開始書寫');
   await shot(page, '40-onboarding');
@@ -892,3 +892,71 @@ async function expectEventually(fn, msg, timeout = 5000) {
   }
   assert.fail(msg);
 }
+
+test('多寫幾件：寫滿三件後可以「再寫一件」，最多十件，清空的會自動收起', async () => {
+  const { context, page, errors } = await newPage();
+  assert.equal(await page.isHidden('#add-win'), true);
+  await page.fill('#item-0', '一');
+  await page.fill('#item-1', '二');
+  assert.equal(await page.isHidden('#add-win'), true, '還沒寫到第三件時不出現');
+  await page.fill('#item-2', '三');
+  assert.equal(await page.isVisible('#add-win'), true);
+  await page.click('#add-win');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'item-3');
+  assert.equal(await page.textContent('.win-list li:nth-child(4) .win-num'), '04');
+  await page.fill('#item-3', '第四件：多走了一站路 #健康');
+  await page.click('#add-win');
+  await page.fill('#item-4', '第五件');
+  await page.locator('#item-4').blur();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(saved.items, ['一', '二', '三', '第四件：多走了一站路 #健康', '第五件']);
+  assert.equal(saved.tags.length, 5);
+  assert.match(await page.textContent('#entry-title'), /今天的成功小事/);
+
+  // 重新整理後還在；回顧頁算 5 件
+  await page.reload();
+  assert.equal(await page.inputValue('#item-4'), '第五件');
+  await page.click('#tab-calendar');
+  assert.equal(await page.textContent('#stat-items'), '5');
+  await page.click('#tab-today');
+
+  // 清空第五件後，存檔時收起
+  await page.fill('#item-4', '');
+  await page.locator('#item-4').blur();
+  await page.click('#tab-calendar');
+  await page.click('#tab-today');
+  assert.equal(await page.locator('.win-list li').count(), 4);
+
+  // 分享卡片照樣產生
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  assert.deepEqual(pngSize(await readFile(await dl.path())), [1080, 1920]);
+
+  // 最多十件
+  for (let i = 4; i < 10; i++) {
+    await page.click('#add-win');
+    await page.fill(`#item-${i}`, `第 ${i + 1} 件`);
+  }
+  assert.equal(await page.isHidden('#add-win'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('稱呼：在設定填寫後出現在今日頁標題與分享卡片', async () => {
+  const { context, page, errors } = await newPage();
+  await page.click('#tab-data');
+  await page.fill('#display-name', '小雨');
+  await page.press('#display-name', 'Enter');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).displayName), '小雨');
+  await page.click('#tab-today');
+  assert.equal(await page.textContent('#entry-title'), '小雨，今天的三件成功小事');
+  await page.fill('#item-0', '今天也好好照顧自己');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  assert.deepEqual(pngSize(await readFile(await dl.path())), [1080, 1920]);
+  await page.reload();
+  assert.equal(await page.textContent('#entry-title'), '小雨，今天的三件成功小事');
+  await page.click('#tab-data');
+  assert.equal(await page.inputValue('#display-name'), '小雨');
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '63-settings.png') });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
