@@ -1,4 +1,4 @@
-// 夢想板介面：清單、編輯器（拖曳、雙指縮放旋轉）、素材、背景、自動排版、存成桌布。
+// 願景板介面：清單、編輯器（拖曳、雙指縮放旋轉）、素材、背景、自動排版、存成桌布。
 
 import {
   BACKGROUNDS,
@@ -63,7 +63,7 @@ export function initBoards({ toast, stamp }) {
       mini.className = 'board-stage mini';
       const name = document.createElement('span');
       name.className = 'board-card-title';
-      name.textContent = board.title || '未命名的夢想板';
+      name.textContent = board.title || '未命名的願景板';
       card.append(mini, name);
       card.addEventListener('click', () => openBoard(board.id));
       grid.appendChild(card);
@@ -112,7 +112,7 @@ export function initBoards({ toast, stamp }) {
     renderSelectionBar();
   }
 
-  /** 修改夢想板：先存復原點，再套用修改、儲存、重繪 */
+  /** 修改願景板：先存復原點，再套用修改、儲存、重繪 */
   function commit(mutate, { rerender = true } = {}) {
     const board = current();
     state.undo.push(clone({ items: board.items, background: board.background }));
@@ -274,7 +274,7 @@ export function initBoards({ toast, stamp }) {
     document.querySelectorAll('.tool-panel').forEach((p) => (p.hidden = true));
     document.querySelectorAll('.tool[data-panel]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
     state.editingTextId = null;
-    $('text-add').textContent = '放上夢想板';
+    $('text-add').textContent = '放上願景板';
   }
 
   function openPanel(name) {
@@ -443,11 +443,11 @@ export function initBoards({ toast, stamp }) {
 
   $('board-undo').addEventListener('click', undo);
 
-  /* ---------- 夢想板本身 ---------- */
+  /* ---------- 願景板本身 ---------- */
 
   $('new-board').addEventListener('click', () => {
-    const board = createBoard(`我的夢想板 ${state.boards.length + 1}`);
-    if (state.boards.length === 0) board.title = '我的夢想板';
+    const board = createBoard(`我的願景板 ${state.boards.length + 1}`);
+    if (state.boards.length === 0) board.title = '我的願景板';
     state.boards.push(board);
     persist();
     openBoard(board.id);
@@ -469,13 +469,13 @@ export function initBoards({ toast, stamp }) {
 
   $('board-delete').addEventListener('click', () => {
     const board = current();
-    if (!window.confirm(`確定要刪除「${board.title || '這個夢想板'}」嗎？刪除後無法復原。`)) return;
+    if (!window.confirm(`確定要刪除「${board.title || '這個願景板'}」嗎？刪除後無法復原。`)) return;
     state.boards = state.boards.filter((b) => b.id !== board.id);
     state.currentId = null;
     persist();
     renderList();
     gcImages();
-    toast('已刪除夢想板');
+    toast('已刪除願景板');
   });
 
   $('board-export').addEventListener('click', async () => {
@@ -486,7 +486,7 @@ export function initBoards({ toast, stamp }) {
     try {
       const canvas = await renderBoardCanvas(board);
       const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
-      const name = `dream-board-${stamp()}.png`;
+      const name = `vision-board-${stamp()}.png`;
       const file = new File([blob], name, { type: 'image/png' });
       const mobile = window.matchMedia('(pointer: coarse)').matches;
       if (mobile && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -513,7 +513,7 @@ export function initBoards({ toast, stamp }) {
     }
   });
 
-  /** 清掉沒有任何夢想板使用的照片 */
+  /** 清掉沒有任何願景板使用的照片 */
   async function gcImages() {
     try {
       const used = new Set(state.boards.flatMap((b) => b.items.filter((it) => it.type === 'photo').map((it) => it.imageId)));

@@ -337,7 +337,7 @@ async function exportJson() {
   const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images });
   download(`success-journal-backup-${stamp()}.json`, JSON.stringify(backup), 'application/json');
   const days = Object.keys(backup.entries).length;
-  toast(`已下載備份檔（${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個夢想板` : ''}）`);
+  toast(`已下載備份檔（${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個願景板` : ''}）`);
 }
 
 function exportText() {
@@ -364,9 +364,9 @@ async function importJson(file) {
   const existingIds = new Set(boards.getBoards().map((b) => b.id));
   const boardOverlap = parsed.boards.filter((b) => existingIds.has(b.id)).length;
   const msg =
-    `備份檔中有 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個夢想板` : ''}。` +
+    `備份檔中有 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個願景板` : ''}。` +
     (overlap ? `\n其中 ${overlap} 天與這台裝置上的紀錄日期相同，將以備份檔內容覆蓋。` : '') +
-    (boardOverlap ? `\n其中 ${boardOverlap} 個夢想板已存在，將以備份檔內容覆蓋。` : '') +
+    (boardOverlap ? `\n其中 ${boardOverlap} 個願景板已存在，將以備份檔內容覆蓋。` : '') +
     '\n確定要匯入嗎？';
   if (!window.confirm(msg)) return;
   flushSave();
@@ -383,10 +383,10 @@ async function importJson(file) {
     try {
       boards.setBoards(mergeBoards(boards.getBoards(), parsed.boards));
     } catch {
-      toast('夢想板匯入失敗：此裝置的儲存空間可能已滿。');
+      toast('願景板匯入失敗：此裝置的儲存空間可能已滿。');
       return;
     }
-    toast(`已匯入 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個夢想板` : ''}`);
+    toast(`已匯入 ${parsed.count} 天的紀錄${boardCount ? `、${boardCount} 個願景板` : ''}`);
     renderToday();
     renderStats();
   }

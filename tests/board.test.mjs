@@ -99,7 +99,7 @@ test('背景、素材與文字靈感', () => {
   assert.ok(WORD_IDEAS.length >= 10);
 });
 
-test('夢想板備份：照片、版面可來回轉換；不合法的內容會被濾掉', () => {
+test('願景板備份：照片、版面可來回轉換；不合法的內容會被濾掉', () => {
   const board = { ...createBoard('2027'), items: [photo('a'), text('b', '旅行'), sticker('c')] };
   const images = { 'img-a': { data: 'data:image/jpeg;base64,AAAA', width: 300, height: 200 } };
   const json = JSON.stringify(buildBackup({}, new Date(), { boards: [board], images }));
@@ -137,10 +137,10 @@ test('舊版（v1）備份仍可匯入', () => {
   assert.deepEqual(parsed.boards, []);
 });
 
-test('合併夢想板與文字匯出', () => {
+test('合併願景板與文字匯出', () => {
   const merged = mergeBoards([{ id: 'a', v: 1 }, { id: 'b', v: 1 }], [{ id: 'b', v: 2 }, { id: 'c', v: 2 }]);
   assert.deepEqual(merged.map((b) => `${b.id}${b.v}`), ['a1', 'b2', 'c2']);
   assert.deepEqual(usedImageIds([{ items: [photo('a'), photo('a'), text('t')] }]), ['img-a']);
   const txt = buildTextExport({}, [{ title: '2027 夢想', items: [text('t', '去京都旅行')] }]);
-  assert.match(txt, /夢想板[\s\S]*2027 夢想\n {2}・去京都旅行/);
+  assert.match(txt, /願景板[\s\S]*2027 夢想\n {2}・去京都旅行/);
 });

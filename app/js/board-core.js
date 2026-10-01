@@ -1,6 +1,6 @@
-// 夢想板純邏輯：版面資料結構、自動排版、文字排版。不碰 DOM，方便在 Node 中測試。
+// 願景板純邏輯：版面資料結構、自動排版、文字排版。不碰 DOM，方便在 Node 中測試。
 //
-// 座標系：夢想板固定為 1080 × 1920（手機直式桌布比例 9:16）。
+// 座標系：願景板固定為 1080 × 1920（手機直式桌布比例 9:16）。
 // 每個物件以「中心點 x, y」、寬度 w、旋轉角 rot（度）、圖層 z 描述。
 
 export const BOARD_W = 1080;
@@ -49,7 +49,7 @@ export const TEXT_STYLES = [
   { id: 'plain', name: '純文字' },
 ];
 
-/** 文字卡的字級、內距、行高（以夢想板座標計） */
+/** 文字卡的字級、內距、行高（以願景板座標計） */
 export function textMetrics(item) {
   const len = [...(item.text || '')].length;
   const ratio = len <= 4 ? 0.15 : len <= 10 ? 0.11 : len <= 24 ? 0.085 : 0.07;
@@ -114,7 +114,7 @@ export function newId(prefix = 'i') {
   return `${prefix}${Date.now().toString(36)}${idCounter.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export function createBoard(title = '我的夢想板') {
+export function createBoard(title = '我的願景板') {
   const now = new Date().toISOString();
   return { id: newId('b'), title, background: 'cream', items: [], createdAt: now, updatedAt: now };
 }
@@ -288,7 +288,7 @@ export function autoLayout(items, { layout = 'scatter', seed = 1 } = {}) {
 
 const finite = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 
-/** 驗證並清理備份檔中的夢想板；格式不符時回傳 null */
+/** 驗證並清理備份檔中的願景板；格式不符時回傳 null */
 export function sanitizeBoard(b) {
   if (!b || typeof b !== 'object' || typeof b.id !== 'string' || !b.id || !Array.isArray(b.items)) return null;
   const items = [];
@@ -315,7 +315,7 @@ export function sanitizeBoard(b) {
   const now = new Date().toISOString();
   return {
     id: b.id.slice(0, 64),
-    title: typeof b.title === 'string' ? b.title.slice(0, 40) : '我的夢想板',
+    title: typeof b.title === 'string' ? b.title.slice(0, 40) : '我的願景板',
     background: BACKGROUNDS.some((bg) => bg.id === b.background) ? b.background : 'cream',
     items,
     createdAt: typeof b.createdAt === 'string' ? b.createdAt : now,
@@ -323,7 +323,7 @@ export function sanitizeBoard(b) {
   };
 }
 
-/** 夢想板使用到的照片 id */
+/** 願景板使用到的照片 id */
 export function usedImageIds(boards) {
   return [...new Set(boards.flatMap((b) => b.items.filter((it) => it.type === 'photo').map((it) => it.imageId)))];
 }

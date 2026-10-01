@@ -1,4 +1,4 @@
-// 夢想板繪製：畫面上的 DOM 與匯出桌布的 canvas 共用同一套尺寸計算，確保看到的就是存下來的。
+// 願景板繪製：畫面上的 DOM 與匯出桌布的 canvas 共用同一套尺寸計算，確保看到的就是存下來的。
 
 import { BOARD_H, BOARD_W, backgroundById, backgroundCss, itemHeight, textMetrics, wrapText } from './board-core.js';
 import { stickerById, stickerDataUrl } from './stickers.js';
@@ -34,7 +34,7 @@ function textColor(item, bg) {
 /* ---------- DOM ---------- */
 
 /**
- * 在容器中繪製夢想板。scale = 容器寬度 / 1080。
+ * 在容器中繪製願景板。scale = 容器寬度 / 1080。
  * 回傳 { el: 物件 id → 元素 }，供編輯器更新單一物件。
  */
 export function renderStage(stage, board, { selectedId = null } = {}) {
@@ -169,7 +169,7 @@ async function loadAssets(board) {
   return map;
 }
 
-/** 將夢想板畫成 1080×1920 的 canvas */
+/** 將願景板畫成 1080×1920 的 canvas */
 export async function renderBoardCanvas(board) {
   if (document.fonts && document.fonts.ready) await document.fonts.ready;
   const bg = backgroundById(board.background);

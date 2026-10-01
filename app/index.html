@@ -4,19 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>成功日記</title>
-  <meta name="description" content="夢想板拼貼與成功日記：每天記錄三件成功小事，搭配溫柔的肯定語。資料只存在你的裝置。">
+  <meta name="description" content="願景板拼貼與成功日記：每天記錄三件成功小事，搭配溫柔的肯定語。資料只存在你的裝置。">
   <meta name="theme-color" content="#F8F4EE">
   <!-- 社群分享預覽（LINE、Facebook、IG 等）。換成自訂網域後，請把下面的網址一起改掉 -->
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="成功日記">
   <meta property="og:locale" content="zh_TW">
   <meta property="og:title" content="成功日記｜看見夢想，也看見每天小小的成功">
-  <meta property="og:description" content="夢想板拼貼 × 每日三件成功小事，搭配溫柔的肯定語。不需帳號，資料只存在你的手機。">
+  <meta property="og:description" content="願景板拼貼 × 每日三件成功小事，搭配溫柔的肯定語。不需帳號，資料只存在你的手機。">
   <meta property="og:url" content="https://jasmine-tsaiii.github.io/success-journal/">
   <meta property="og:image" content="https://jasmine-tsaiii.github.io/success-journal/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="成功日記：夢想板拼貼與每日三件小成功">
+  <meta property="og:image:alt" content="成功日記：願景板拼貼與每日三件小成功">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="color-scheme" content="light">
   <link rel="manifest" href="manifest.webmanifest">
@@ -85,33 +85,33 @@
       <aside class="note-card">
         <p class="eyebrow">Privacy</p>
         <h2 class="note-title">你的日記只存在這台裝置</h2>
-        <p>不需要帳號。你的日記、夢想板和照片，只儲存在你目前使用的手機或電腦瀏覽器裡，不會上傳到任何伺服器，任何人（包括 Jasmine）都看不到。</p>
+        <p>不需要帳號。你的日記、願景板和照片，只儲存在你目前使用的手機或電腦瀏覽器裡，不會上傳到任何伺服器，任何人（包括 Jasmine）都看不到。</p>
         <p>也因此，<strong>換手機、清除瀏覽器資料或刪除 App 之前，請先到「設定」下載備份檔</strong>，之後再匯入就能還原。</p>
         <button type="button" class="text-btn" data-goto="data">前往設定與備份 →</button>
       </aside>
     </section>
 
-    <!-- 夢想板 -->
+    <!-- 願景板 -->
     <section id="view-dreams" class="view" aria-labelledby="tab-dreams" data-view="dreams" hidden>
       <div id="boards-list">
         <div class="panel">
-          <p class="eyebrow">Dream Board</p>
-          <h2 class="section-title">夢想板</h2>
+          <p class="eyebrow">Vision Board</p>
+          <h2 class="section-title">願景板</h2>
           <p>把想要的生活，放在每天看得見的地方。放上照片、文字和小素材，自己拼貼，或交給「幫我排版」。完成後可以存成手機桌布。</p>
-          <button type="button" class="btn btn-primary" id="new-board">建立新的夢想板</button>
-          <p class="small boards-empty" id="boards-empty">還沒有夢想板。從寫下一個想要的畫面開始吧。</p>
+          <button type="button" class="btn btn-primary" id="new-board">建立新的願景板</button>
+          <p class="small boards-empty" id="boards-empty">還沒有願景板。從寫下一個想要的畫面開始吧。</p>
         </div>
         <div class="board-grid" id="board-grid"></div>
       </div>
 
       <div id="board-editor" hidden>
         <div class="editor-head">
-          <button type="button" class="text-btn" id="board-back">‹ 所有夢想板</button>
-          <input type="text" id="board-title" class="board-title-input" maxlength="40" aria-label="夢想板名稱" placeholder="為夢想板取個名字">
+          <button type="button" class="text-btn" id="board-back">‹ 所有願景板</button>
+          <input type="text" id="board-title" class="board-title-input" maxlength="40" aria-label="願景板名稱" placeholder="為願景板取個名字">
         </div>
 
         <div class="stage-wrap">
-          <div class="board-stage" id="board-stage" aria-label="夢想板畫布"></div>
+          <div class="board-stage" id="board-stage" aria-label="願景板畫布"></div>
           <p class="stage-empty" id="stage-empty">從下方加入照片、文字或素材，<br>再按「幫我排版」。</p>
         </div>
 
@@ -128,7 +128,7 @@
         </div>
         <p class="small gesture-hint">小提示：用手指拖曳移動；兩指可以縮放與旋轉。</p>
 
-        <div class="tools" role="toolbar" aria-label="夢想板工具">
+        <div class="tools" role="toolbar" aria-label="願景板工具">
           <label class="tool" for="photo-input"><span class="tool-en">Photo</span>照片</label>
           <input type="file" id="photo-input" accept="image/*" multiple class="visually-hidden">
           <button type="button" class="tool" data-panel="text" aria-expanded="false"><span class="tool-en">Words</span>文字</button>
@@ -141,7 +141,7 @@
         <div class="tool-panel" id="panel-text" hidden>
           <textarea id="text-input" rows="2" maxlength="80" placeholder="寫下你的夢想、關鍵字或一句話"></textarea>
           <div class="chip-row" id="text-style-chips" aria-label="文字樣式"></div>
-          <button type="button" class="btn btn-primary" id="text-add">放上夢想板</button>
+          <button type="button" class="btn btn-primary" id="text-add">放上願景板</button>
           <p class="small panel-label">靈感</p>
           <div class="chip-row" id="word-ideas"></div>
         </div>
@@ -159,7 +159,7 @@
 
         <div class="editor-foot">
           <button type="button" class="btn btn-primary" id="board-export">存成手機桌布</button>
-          <button type="button" class="text-btn danger" id="board-delete">刪除這個夢想板</button>
+          <button type="button" class="text-btn danger" id="board-delete">刪除這個願景板</button>
         </div>
       </div>
     </section>
@@ -197,14 +197,14 @@
       <div class="panel">
         <p class="eyebrow">Backup</p>
         <h2 class="section-title">備份與還原</h2>
-        <p>日記、夢想板與照片都只存在這台裝置。建議每隔一段時間下載一次備份檔，並存到雲端硬碟或寄給自己保存。</p>
+        <p>日記、願景板與照片都只存在這台裝置。建議每隔一段時間下載一次備份檔，並存到雲端硬碟或寄給自己保存。</p>
         <div class="btn-stack">
           <button type="button" class="btn btn-primary" id="export-json">下載備份檔（JSON）</button>
           <button type="button" class="btn" id="export-txt">匯出文字檔（方便閱讀）</button>
           <label class="btn" for="import-file">從備份檔還原</label>
           <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden">
         </div>
-        <p class="small">備份檔包含日記、夢想板與照片。還原時，備份檔中的同一天紀錄與同一個夢想板會覆蓋這台裝置上的內容，其他內容會保留。</p>
+        <p class="small">備份檔包含日記、願景板與照片。還原時，備份檔中的同一天紀錄與同一個願景板會覆蓋這台裝置上的內容，其他內容會保留。</p>
       </div>
 
       <div class="panel">
@@ -251,7 +251,7 @@
       <span class="tab-en">Today</span><span class="tab-zh">今日</span>
     </button>
     <button type="button" role="tab" id="tab-dreams" data-tab="dreams" aria-controls="view-dreams" aria-selected="false">
-      <span class="tab-en">Dreams</span><span class="tab-zh">夢想板</span>
+      <span class="tab-en">Vision</span><span class="tab-zh">願景板</span>
     </button>
     <button type="button" role="tab" id="tab-calendar" data-tab="calendar" aria-controls="view-calendar" aria-selected="false">
       <span class="tab-en">Review</span><span class="tab-zh">回顧</span>

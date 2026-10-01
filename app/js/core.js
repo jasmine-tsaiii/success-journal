@@ -161,7 +161,7 @@ export function monthGrid(year, month /* 1-12 */) {
 /* ---------- 備份 ---------- */
 
 /**
- * 建立備份內容。boards 為夢想板版面，images 為 { id: { data: dataURL, width, height } }。
+ * 建立備份內容。boards 為願景板版面，images 為 { id: { data: dataURL, width, height } }。
  */
 export function buildBackup(entries, now = new Date(), { boards = [], images = {} } = {}) {
   const sorted = {};
@@ -216,7 +216,7 @@ export function parseBackup(text) {
   return { entries, count: Object.keys(entries).length, boards, images };
 }
 
-/** 合併夢想板：同 id 以備份為準，其他保留 */
+/** 合併願景板：同 id 以備份為準，其他保留 */
 export function mergeBoards(current, incoming) {
   const map = new Map(current.map((b) => [b.id, b]));
   for (const b of incoming) map.set(b.id, b);
@@ -246,9 +246,9 @@ export function buildTextExport(entries, boards = []) {
   }
   const dreams = boards.filter((b) => b.items.some((it) => it.type === 'text'));
   if (dreams.length) {
-    lines.push('夢想板', '='.repeat(20), '');
+    lines.push('願景板', '='.repeat(20), '');
     for (const b of dreams) {
-      lines.push(b.title || '我的夢想板');
+      lines.push(b.title || '我的願景板');
       for (const it of b.items.filter((i) => i.type === 'text')) lines.push(`  ・${it.text.replace(/\n/g, ' ')}`);
       lines.push('');
     }

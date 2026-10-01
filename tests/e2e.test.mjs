@@ -202,7 +202,7 @@ test('PWA：manifest、圖示與離線開啟', async () => {
   await context.close();
 });
 
-/* ---------- 夢想板 ---------- */
+/* ---------- 願景板 ---------- */
 
 async function makePhotos(page) {
   const specs = [
@@ -239,13 +239,13 @@ async function makePhotos(page) {
 const boxOf = (page, sel) => page.locator(sel).first().evaluate((el) => ({ left: el.style.left, top: el.style.top, width: el.style.width }));
 const pngSize = (buf) => [buf.readUInt32BE(16), buf.readUInt32BE(20)];
 
-test('夢想板：加入照片、文字、素材，自動排版、手動調整、復原、存成桌布、備份還原', async () => {
+test('願景板：加入照片、文字、素材，自動排版、手動調整、復原、存成桌布、備份還原', async () => {
   const { context, page, errors } = await newPage();
   await page.click('#tab-dreams');
   assert.equal(await page.isVisible('#boards-empty'), true);
   await page.click('#new-board');
   assert.equal(await page.isVisible('#board-editor'), true);
-  assert.equal(await page.inputValue('#board-title'), '我的夢想板');
+  assert.equal(await page.inputValue('#board-title'), '我的願景板');
   assert.equal(await page.isVisible('#stage-empty'), true);
 
   // 照片
@@ -327,7 +327,7 @@ test('夢想板：加入照片、文字、素材，自動排版、手動調整�
 
   // 存成桌布
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#board-export')]);
-  assert.match(dl.suggestedFilename(), /^dream-board-20261001\.png$/);
+  assert.match(dl.suggestedFilename(), /^vision-board-20261001\.png$/);
   const png = await readFile(await dl.path());
   assert.deepEqual(pngSize(png), [1080, 1920]);
   if (SCREENSHOT_DIR) await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '12-wallpaper.png'), png));
@@ -361,7 +361,7 @@ test('夢想板：加入照片、文字、素材，自動排版、手動調整�
   await page.click('#tab-data');
   page.once('dialog', (d) => d.accept());
   await page.setInputFiles('#import-file', await jsonDl.path());
-  await page.waitForFunction(() => document.getElementById('toast').textContent.includes('1 個夢想板'));
+  await page.waitForFunction(() => document.getElementById('toast').textContent.includes('1 個願景板'));
   await page.click('#tab-dreams');
   await page.click('.board-card');
   await page.waitForFunction(() => {
@@ -369,7 +369,7 @@ test('夢想板：加入照片、文字、素材，自動排版、手動調整�
     return imgs.length === 3 && imgs.every((i) => i.naturalWidth > 0);
   });
 
-  // 刪除夢想板
+  // 刪除願景板
   page.once('dialog', (d) => d.accept());
   await page.click('#board-delete');
   assert.equal(await page.locator('.board-card').count(), 0);
@@ -389,7 +389,7 @@ test('夢想板：加入照片、文字、素材，自動排版、手動調整�
     await page.waitForTimeout(100);
     imagesLeft = await countImages();
   }
-  assert.equal(imagesLeft, 0, '刪除夢想板後，沒用到的照片也要清掉');
+  assert.equal(imagesLeft, 0, '刪除願景板後，沒用到的照片也要清掉');
 
   assert.deepEqual(errors, []);
   await context.close();

@@ -816,7 +816,7 @@ textarea:focus {
   margin-right: -0.12em;
 }
 
-/* ---------- 夢想板清單 ---------- */
+/* ---------- 願景板清單 ---------- */
 
 .boards-empty {
   margin: 14px 0 0;
@@ -855,7 +855,7 @@ textarea:focus {
   letter-spacing: 0.08em;
 }
 
-/* ---------- 夢想板編輯器 ---------- */
+/* ---------- 願景板編輯器 ---------- */
 
 .editor-head {
   display: flex;

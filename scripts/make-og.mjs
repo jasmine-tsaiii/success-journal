@@ -53,10 +53,10 @@ const html = `<!doctype html>
 </style></head>
 <body>
   <div class="left">
-    <p class="en">Dream Board · Success Journal</p>
+    <p class="en">Vision Board · Success Journal</p>
     <h1>成功日記</h1>
     <p class="sub">看見夢想，<br>也看見每天小小的成功</p>
-    <div class="tags"><span class="tag">夢想板拼貼</span><span class="tag">每日三件小成功</span></div>
+    <div class="tags"><span class="tag">願景板拼貼</span><span class="tag">每日三件小成功</span></div>
     <div class="dots">
       <i style="background:#C96B6B"></i><i style="background:#DA9563"></i><i style="background:#D9B44A"></i><i style="background:#7FB08C"></i><i style="background:#6F9FC8"></i><i style="background:#7A7CBF"></i><i style="background:#A985C6"></i>
     </div>

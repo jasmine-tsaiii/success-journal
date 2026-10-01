@@ -1,4 +1,4 @@
-// 夢想板內建素材：貼紙（SVG）與文字卡建議。全部自製，不需要網路或授權。
+// 願景板內建素材：貼紙（SVG）與文字卡建議。全部自製，不需要網路或授權。
 
 const svg = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${body}</svg>`;
 
@@ -93,7 +93,7 @@ export function stickerDataUrl(sticker) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(sticker.svg)}`;
 }
 
-/** 文字卡靈感：點一下就能放上夢想板 */
+/** 文字卡靈感：點一下就能放上願景板 */
 export const WORD_IDEAS = [
   '豐盛', '自由', '健康', '平靜', '被愛', '喜悅', '勇敢', '旅行',
   '成長', '感恩', '創造', '家', '閃閃發光', '好好休息', '做喜歡的事', '溫柔地堅定',
