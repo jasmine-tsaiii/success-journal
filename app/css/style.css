@@ -1733,3 +1733,150 @@ textarea:focus {
 .detail-list li {
   flex-wrap: wrap;
 }
+
+/* ---------- 分享今天 ---------- */
+
+.share-day {
+  display: block;
+  margin: 2px 0 0 auto;
+}
+
+/* ---------- 備份提醒 ---------- */
+
+.backup-nudge {
+  position: relative;
+  margin-top: 28px;
+  padding: 18px 40px 18px 18px;
+  background: var(--paper);
+  border-top: 3px solid var(--accent);
+}
+
+.backup-nudge-text {
+  font-size: 14.5px;
+  line-height: 1.8;
+  margin-bottom: 12px;
+}
+
+.backup-nudge .btn {
+  width: auto;
+  display: inline-block;
+  padding: 8px 20px;
+  font-size: 14px;
+}
+
+.backup-nudge .note-close {
+  top: 10px;
+  right: 8px;
+}
+
+.note-card.muted-by-nudge {
+  display: none;
+}
+
+.last-backup {
+  margin-top: -4px;
+}
+
+/* ---------- 新手引導 ---------- */
+
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: var(--bg) var(--stars);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 26px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  overflow-y: auto;
+}
+
+.ob-inner {
+  width: 100%;
+  max-width: 440px;
+}
+
+.ob-kicker {
+  font-size: 11px;
+  border-bottom: 1.5px solid var(--ink);
+  padding-bottom: 10px;
+  margin-bottom: 30px;
+}
+
+.ob-step {
+  min-height: 330px;
+  animation: fade 0.3s ease;
+}
+
+.ob-title {
+  font-size: 27px;
+  letter-spacing: 0.14em;
+  line-height: 1.5;
+  margin: 6px 0 18px;
+}
+
+.ob-step p {
+  font-size: 15.5px;
+  line-height: 1.9;
+  color: var(--ink-2);
+}
+
+.ob-demo {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0;
+}
+
+.ob-demo li {
+  display: flex;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 15.5px;
+}
+
+.ob-demo b {
+  font-family: var(--latin);
+  font-weight: 500;
+  color: var(--accent);
+  font-size: 19px;
+  line-height: 1.5;
+}
+
+.ob-install {
+  margin-top: 18px;
+  padding: 16px;
+  background: var(--paper);
+  border-top: 3px solid var(--accent);
+  font-size: 14.5px;
+  line-height: 1.85;
+}
+
+.ob-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 26px 0 18px;
+}
+
+.ob-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rule);
+}
+
+.ob-dots i.on {
+  background: var(--accent);
+}
+
+.ob-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ob-actions .btn {
+  width: auto;
+  padding: 11px 28px;
+}

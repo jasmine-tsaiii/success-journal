@@ -29,6 +29,7 @@ import {
 } from './core.js';
 import { isStorageAvailable, loadEntries, loadSettings, loadTagList, requestPersistence, saveEntries, saveSettings, saveTagList } from './storage.js';
 import { initBoards } from './board-ui.js';
+import { canvasToBlob, renderDayCard, shareBackup, shareOrDownload } from './share.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 
@@ -172,6 +173,8 @@ function renderToday() {
   state.dayTags = cleanTags(state.entries[key]?.tags);
   state.openPicker = null;
   renderTagRows();
+  updateShareButton();
+  if ($('backup-nudge')) updateBackupNudge();
   const updated = state.entries[key]?.updatedAt;
   setSaveStatus(updated ? `已儲存在這台裝置・${formatTime(updated)}` : '');
 }
@@ -570,9 +573,113 @@ async function exportJson() {
     }
   }
   const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images, tags: state.tagList });
-  download(`success-journal-backup-${stamp()}.json`, JSON.stringify(backup), 'application/json');
+  const result = await shareBackup(JSON.stringify(backup), stamp());
+  if (result === 'cancelled') return;
+  state.settings = { ...state.settings, lastBackupAt: new Date().toISOString(), backupSnoozeUntil: null };
+  saveSettings(state.settings);
+  renderLastBackup();
+  updateBackupNudge();
   const days = Object.keys(backup.entries).length;
-  toast(`已下載備份檔（${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個願景板` : ''}）`);
+  const what = `${days} 天的紀錄${allBoards.length ? `、${allBoards.length} 個願景板` : ''}`;
+  toast(result === 'shared' ? `已備份（${what}）` : `已下載備份檔（${what}）`);
+}
+
+/* ---------- 備份提醒 ---------- */
+
+const DAY_MS = 86400000;
+const BACKUP_EVERY_DAYS = 14;
+
+function renderLastBackup() {
+  const at = state.settings.lastBackupAt;
+  $('last-backup').textContent = at ? `上次備份：${dotDate(toKeyFromIso(at))}` : '還沒有備份過。';
+}
+
+const toKeyFromIso = (iso) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+function updateBackupNudge() {
+  const nudge = $('backup-nudge');
+  const recordedDays = Object.keys(state.entries).filter((k) => hasRecord(state.entries[k])).length;
+  const now = Date.now();
+  const last = Date.parse(state.settings.lastBackupAt || '');
+  const snoozed = now < Date.parse(state.settings.backupSnoozeUntil || '');
+  const daysSince = Number.isFinite(last) ? Math.floor((now - last) / DAY_MS) : null;
+  const due = recordedDays >= 3 && (daysSince === null || daysSince >= BACKUP_EVERY_DAYS) && !snoozed;
+  nudge.hidden = !due;
+  if (due) {
+    $('backup-nudge-text').textContent =
+      daysSince === null
+        ? `你已經記錄了 ${recordedDays} 天，還沒有備份過。存一份到雲端，換手機也不怕。`
+        : `距離上次備份已經 ${daysSince} 天了，存一份新的吧。`;
+  }
+  // 同時只顯示一個提醒
+  $('privacy-note').classList.toggle('muted-by-nudge', due);
+}
+
+/* ---------- 分享今天 ---------- */
+
+function updateShareButton() {
+  $('share-day').hidden = !textareas.some((ta) => ta.value.trim());
+}
+
+async function shareToday() {
+  flushSave();
+  const key = state.date;
+  const { chakra, affirmation } = chakraForDate(key);
+  const btn = $('share-day');
+  btn.disabled = true;
+  try {
+    const canvas = await renderDayCard({
+      date: key,
+      week: `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][weekdayIndex(key)]} · 週${WEEK_ZH[weekdayIndex(key)]}`,
+      wins: textareas.map((ta) => ta.value),
+      affirmation,
+      color: chakra.color,
+      colorName: chakra.colorName,
+    });
+    const result = await shareOrDownload(await canvasToBlob(canvas), `success-journal-${key}.png`, '今天的小成功');
+    if (result === 'downloaded') toast('已存下今天的小成功卡片');
+  } catch {
+    toast('產生卡片時發生問題，請再試一次');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ---------- 新手引導 ---------- */
+
+function installTip() {
+  const ua = navigator.userAgent;
+  const ios = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  if (standalone) return '你已經從主畫面打開成功日記了，很好！';
+  if (ios) return '加到主畫面：在 Safari 點下方「分享」→「加入主畫面」。之後請固定從主畫面打開——iPhone 上 Safari 和主畫面的資料是分開存的。';
+  if (/Android/.test(ua)) return '加到主畫面：點右上角「⋮」→「安裝應用程式」或「加到主畫面」，之後從主畫面打開就像一般 App。';
+  return '用手機打開這個網址並加到主畫面，每天書寫最方便。';
+}
+
+function startOnboarding() {
+  const box = $('onboarding');
+  const steps = [...box.querySelectorAll('.ob-step')];
+  let i = 0;
+  const finish = () => {
+    box.hidden = true;
+    state.settings = { ...state.settings, onboarded: true };
+    saveSettings(state.settings);
+    textareas[0].focus({ preventScroll: true });
+  };
+  const show = () => {
+    steps.forEach((el, n) => (el.hidden = n !== i));
+    box.querySelectorAll('.ob-dots i').forEach((d, n) => d.classList.toggle('on', n === i));
+    $('ob-next').textContent = i === steps.length - 1 ? '開始書寫' : '下一步';
+  };
+  $('ob-install').textContent = installTip();
+  $('ob-next').addEventListener('click', () => (i === steps.length - 1 ? finish() : (i++, show())));
+  $('ob-skip').addEventListener('click', finish);
+  show();
+  box.hidden = false;
 }
 
 function exportText() {
@@ -774,6 +881,19 @@ function bindSettings() {
 
 const NOTE_SNOOZE_DAYS = 7;
 
+function bindBackupAndShare() {
+  $('backup-now').addEventListener('click', exportJson);
+  $('backup-later').addEventListener('click', () => {
+    state.settings = { ...state.settings, backupSnoozeUntil: new Date(Date.now() + 3 * DAY_MS).toISOString() };
+    saveSettings(state.settings);
+    updateBackupNudge();
+  });
+  $('share-day').addEventListener('click', shareToday);
+  textareas.forEach((ta) => ta.addEventListener('input', updateShareButton));
+  renderLastBackup();
+  updateBackupNudge();
+}
+
 function bindPrivacyNote() {
   const note = $('privacy-note');
   const until = Date.parse(state.settings.privacyNoteHiddenAt || '') + NOTE_SNOOZE_DAYS * 86400000;
@@ -789,6 +909,15 @@ function bindPrivacyNote() {
 function init() {
   bind();
   bindPrivacyNote();
+  bindBackupAndShare();
+  if (!state.settings.onboarded) {
+    if (Object.keys(state.entries).length) {
+      state.settings = { ...state.settings, onboarded: true };
+      saveSettings(state.settings);
+    } else {
+      startOnboarding();
+    }
+  }
   bindSettings();
   bindTags();
   if (!storageOk) {

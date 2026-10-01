@@ -84,7 +84,15 @@
           <li><span class="win-num" aria-hidden="true">03</span><div class="win-body"><label for="item-2" class="visually-hidden">第三件</label><textarea id="item-2" rows="1" maxlength="2000" placeholder="對自己說一聲謝謝"></textarea><div class="win-tags" id="tags-2" data-i="2"></div></div></li>
         </ol>
         <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
+        <button type="button" class="text-btn share-day" id="share-day" hidden>分享今天的小成功 →</button>
       </form>
+
+      <aside class="backup-nudge" id="backup-nudge" hidden>
+        <p class="label-caps">Backup</p>
+        <p class="backup-nudge-text" id="backup-nudge-text"></p>
+        <button type="button" class="btn btn-primary" id="backup-now">立即備份</button>
+        <button type="button" class="note-close" id="backup-later" aria-label="稍後再提醒">×</button>
+      </aside>
 
       <aside class="note-card" id="privacy-note" hidden>
         <details>
@@ -233,12 +241,13 @@
       <div class="panel">
         <p class="label-caps">Backup</p>
         <h2 class="section-title">備份與還原</h2>
-        <p>日記、願景板與照片都只存在這台裝置。建議每隔一段時間下載一次備份檔，並存到雲端硬碟或寄給自己保存。</p>
+        <p>日記、願景板與照片都只存在這台裝置。建議每兩週備份一次：手機上按「立即備份」，選 iCloud 雲碟、Google 雲端硬碟或 LINE 存起來就好。</p>
+        <p class="small last-backup" id="last-backup"></p>
         <div class="btn-stack">
-          <button type="button" class="btn btn-primary" id="export-json">下載備份檔（JSON）</button>
+          <button type="button" class="btn btn-primary" id="export-json">立即備份（存到雲端或手機）</button>
           <button type="button" class="btn" id="export-txt">匯出文字檔（方便閱讀）</button>
           <label class="btn" for="import-file">從備份檔還原</label>
-          <input type="file" id="import-file" accept="application/json,.json" class="visually-hidden">
+          <input type="file" id="import-file" accept="application/json,.json,text/plain,.txt" class="visually-hidden">
         </div>
         <p class="small">備份檔包含日記、願景板與照片。還原時，備份檔中的同一天紀錄與同一個願景板會覆蓋這台裝置上的內容，其他內容會保留。</p>
       </div>
@@ -312,6 +321,36 @@
       <span class="tab-en">Settings</span><span class="tab-zh">設定</span>
     </button>
   </nav>
+
+  <div class="onboarding" id="onboarding" role="dialog" aria-modal="true" aria-labelledby="ob-title" hidden>
+    <div class="ob-inner">
+      <p class="caps ob-kicker">Welcome to Success Journal</p>
+      <section class="ob-step" data-step="0">
+        <p class="label-caps">01 · Little Wins</p>
+        <h2 class="ob-title" id="ob-title">每天寫下三件小成功</h2>
+        <p>準時起床、好好吃一頓飯、對自己說一句溫柔的話——再小的事都算數。</p>
+        <ol class="ob-demo"><li><b>01</b>早上喝了一杯溫水</li><li><b>02</b>完成拖了很久的報告</li><li><b>03</b>傍晚去散步</li></ol>
+        <p class="small">每天還有一句肯定語與引導問題陪你書寫。</p>
+      </section>
+      <section class="ob-step" data-step="1" hidden>
+        <p class="label-caps">02 · Vision Board</p>
+        <h2 class="ob-title">把願景放在眼前</h2>
+        <p>在「願景板」放上喜歡的照片和一句話，選一個雜誌版型，存成手機桌布，每天都看得見。</p>
+        <p>在「回顧」看見自己累積了多少成功，哪一類最多。</p>
+      </section>
+      <section class="ob-step" data-step="2" hidden>
+        <p class="label-caps">03 · Your Data</p>
+        <h2 class="ob-title">日記只存在這台手機</h2>
+        <p>不需要帳號，任何人都看不到你的日記。也因此，請記得定期到「設定」按「立即備份」，存到雲端硬碟。</p>
+        <div class="ob-install" id="ob-install"></div>
+      </section>
+      <div class="ob-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="ob-actions">
+        <button type="button" class="text-btn" id="ob-skip">略過</button>
+        <button type="button" class="btn btn-primary" id="ob-next">下一步</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <noscript><p class="noscript">請開啟 JavaScript 才能使用成功日記。</p></noscript>
