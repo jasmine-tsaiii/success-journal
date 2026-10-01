@@ -79,7 +79,7 @@ test('首頁顯示當日脈輪、引導問題、肯定語與隱私說明', async
   assert.equal(await page.textContent('#chakra-color-name'), '綠色');
   assert.ok((await page.textContent('#chakra-prompt')).length > 5);
   assert.ok((await page.textContent('#chakra-affirmation')).length > 5);
-  assert.match(await page.textContent('.note-card'), /只存在這台裝置[\s\S]*備份/);
+  assert.match(await page.textContent('.note-card'), /只存在本機[\s\S]*備份/);
   assert.ok(await page.isDisabled('#next-day'), '不能前往未來的日期');
   await shot(page, '01-today');
   assert.deepEqual(errors, []);
