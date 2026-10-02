@@ -1018,7 +1018,6 @@ async function showGoogleButton() {
   err.hidden = true;
   try {
     await cloud.renderGoogleButton($('gsi-button'), {
-      dark: (document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark',
       onSignedIn: afterSignIn,
       onError: (e) => {
         err.textContent = `登入失敗：${e.message}`;
