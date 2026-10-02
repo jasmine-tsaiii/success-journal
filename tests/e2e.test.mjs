@@ -77,6 +77,16 @@ async function newPage({ date = '2026-10-01T09:00:00', onboarding = false, cloud
   return { context, page, errors };
 }
 
+/** 按「分享今天的小成功」→ 預覽 → 分享／儲存，回傳下載的檔案 */
+async function shareCard(page) {
+  await page.click('#share-day');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.isEnabled('#share-confirm'), true);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-confirm')]);
+  await page.waitForSelector('#share-sheet', { state: 'hidden' });
+  return dl;
+}
+
 const shot = async (page, name) => {
   if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, `${name}.png`), fullPage: true });
 };
@@ -91,7 +101,7 @@ test('首頁顯示當日脈輪、引導問題、肯定語與隱私說明', async
   assert.equal(await page.textContent('#chakra-color-name'), '綠色');
   assert.ok((await page.textContent('#chakra-prompt')).length > 5);
   assert.ok((await page.textContent('#chakra-affirmation')).length > 5);
-  assert.match(await page.textContent('.note-card'), /登入儲存資料[\s\S]*Google 帳號登入/);
+  assert.match(await page.textContent('#login-bar'), /尚未登入[\s\S]*登入 Google 帳號/);
   assert.ok(await page.isDisabled('#next-day'), '不能前往未來的日期');
   await shot(page, '01-today');
   assert.deepEqual(errors, []);
@@ -457,26 +467,26 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   await page.fill('#item-2', '十分鐘冥想');
   await page.locator('#item-2').blur();
 
-  // 平常不顯示「#」，只有正在寫的那一件才出現
-  assert.equal(await page.isVisible('#tags-0 .tag-toggle'), false);
-  assert.equal(await page.isVisible('#tags-2 .tag-toggle'), true);
-  // 第二件：點「#」→ 健康
+  // 平常不顯示標籤列，只有正在寫的那一件才出現
+  assert.equal(await page.locator('#tags-0 .tag-strip').count(), 0);
+  assert.equal(await page.isVisible('#tags-2 .tag-strip'), true);
+  // 第二件：點一下「#健康」，輸入框不會失去焦點
   await page.click('#item-1');
-  await page.click('#tags-1 .tag-toggle');
-  await page.click('#tags-1 .tag-picker .tag-chip >> text=健康');
+  await page.click('#tags-1 .tag-strip .tag-chip >> text=#健康');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'item-1');
+  assert.equal(await page.getAttribute('#tags-1 .tag-chip.on', 'aria-pressed'), 'true');
   // 第三件：自訂標籤「冥想」，同時勾選「自我照顧」
   await page.click('#item-2');
-  await page.click('#tags-2 .tag-toggle');
-  await page.fill('#tags-2 .tag-new input', '#冥想');
-  await page.click('#tags-2 .tag-new button');
-  await page.click('#tags-2 .tag-picker .tag-chip >> text=自我照顧');
-  await page.click('#tags-2 .tag-toggle');
+  await page.click('#tags-2 .tag-custom');
+  await page.fill('#tags-2 .tag-custom-input', '#冥想');
+  await page.press('#tags-2 .tag-custom-input', 'Enter');
+  await page.click('#tags-2 .tag-strip .tag-chip >> text=#自我照顧');
+  assert.equal(await page.textContent('#tags-2 .tag-strip .tag-chip.on'), '#冥想', '選好的標籤排在最前面');
+  // 點在其他地方：標籤列收起，已選標籤以小字顯示
+  await page.click('.prompt .label-caps');
+  assert.equal(await page.locator('#tags-2 .tag-strip').count(), 0);
   assert.equal(await page.textContent('#tags-2 .tag-list'), '#冥想 #自我照顧');
   assert.equal(await page.textContent('#tags-1 .tag-list'), '#健康');
-  // 點在其他地方：「#」收起，已選標籤仍以小字顯示
-  await page.click('.prompt-text');
-  assert.equal(await page.isVisible('#tags-2 .tag-toggle'), false);
-  assert.equal(await page.isVisible('#tags-2 .tag-list'), true);
   assert.equal(await page.locator('#tags-0 .tag-list').count(), 0, '文字裡的 #標籤 不重複顯示');
   await shot(page, '20-tags-today');
 
@@ -487,8 +497,7 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   await page.click('#prev-day');
   await page.fill('#item-0', '回完所有信件');
   await page.click('#item-0');
-  await page.click('#tags-0 .tag-toggle');
-  await page.click('#tags-0 .tag-picker .tag-chip >> text=工作');
+  await page.click('#tags-0 .tag-strip .tag-chip >> text=#工作');
 
   await page.click('#tab-calendar');
   assert.match(await page.textContent('#tag-hero'), /本月最多的是 #工作：1 件/);
@@ -522,24 +531,12 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   await context.close();
 });
 
-test('隱私提醒：預設收合成一行，按 × 之後 7 天內不再出現', async () => {
+test('尚未登入：今日頁頂端提醒，點了前往設定登入', async () => {
   const { context, page } = await newPage();
-  assert.equal(await page.isVisible('#privacy-note'), true);
-  assert.equal(await page.isVisible('#privacy-note details > p'), false, '預設收合');
-  await page.click('#privacy-note summary');
-  assert.equal(await page.isVisible('#privacy-note details > p'), true);
-  await page.click('#privacy-close');
-  assert.equal(await page.isHidden('#privacy-note'), true);
-  await page.reload();
-  assert.equal(await page.isHidden('#privacy-note'), true, '7 天內不顯示');
-  // 模擬 8 天前收起
-  await page.evaluate(() => {
-    const s = JSON.parse(localStorage.getItem('success-journal.settings.v1'));
-    s.privacyNoteHiddenAt = new Date(Date.now() - 8 * 86400000).toISOString();
-    localStorage.setItem('success-journal.settings.v1', JSON.stringify(s));
-  });
-  await page.reload();
-  assert.equal(await page.isVisible('#privacy-note'), true, '超過 7 天再提醒');
+  assert.equal(await page.isVisible('#login-bar'), true);
+  await page.click('#login-bar');
+  assert.equal(await page.isVisible('#view-data'), true);
+  assert.equal(await page.isVisible('#cloud-out'), true);
   await context.close();
 });
 
@@ -580,7 +577,6 @@ test('備份提醒：記錄 3 天後還沒備份會提醒，備份後消失；14
   await page.reload();
   assert.equal(await page.isVisible('#backup-nudge'), true);
   assert.match(await page.textContent('#backup-nudge-text'), /記錄了 3 天，還沒有備份過/);
-  assert.equal(await page.isHidden('#privacy-note'), true, '同時只顯示一個提醒');
   await shot(page, '41-backup-nudge');
 
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#backup-now')]);
@@ -613,7 +609,7 @@ test('分享今天：有寫內容時出現按鈕，產生 1080×1920 的卡片',
   await page.fill('#item-1', '把拖了一週的報告交出去了，主管說寫得很清楚 #工作');
   await page.fill('#item-2', '傍晚和朋友去河邊散步');
   assert.equal(await page.isVisible('#share-day'), true);
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  const dl = await shareCard(page);
   assert.equal(dl.suggestedFilename(), 'success-journal-2026-10-01.png');
   const png = await readFile(await dl.path());
   assert.deepEqual(pngSize(png), [1080, 1920]);
@@ -638,10 +634,12 @@ function fakeCloud() {
   };
   const json = (route, status, body) => route.fulfill({ status, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const uidOf = (req) => (req.headers().authorization || '').replace('Bearer tok:', '');
+  const meta = new Map(); // uid → user_metadata
+  const userOf = (id) => ({ id, email: users.get(id), user_metadata: { full_name: 'Amy Chen', ...(meta.get(id) || {}) } });
   const session = (email) => {
     const id = `uid-${email.split('@')[0]}`;
     users.set(id, email);
-    return { access_token: `tok:${id}`, refresh_token: `ref:${id}`, expires_in: 3600, user: { id, email, user_metadata: { full_name: 'Amy' } } };
+    return { access_token: `tok:${id}`, refresh_token: `ref:${id}`, expires_in: 3600, user: userOf(id) };
   };
 
   const gsi = `window.google = { accounts: { id: {
@@ -672,6 +670,10 @@ function fakeCloud() {
     if (path === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
     const uid = uidOf(req);
     if (!users.has(uid)) return json(route, 401, { message: 'JWT expired' });
+    if (path === '/auth/v1/user') {
+      if (req.method() === 'PUT') meta.set(uid, { ...(meta.get(uid) || {}), ...req.postDataJSON().data });
+      return json(route, 200, userOf(uid));
+    }
     if (path === '/rest/v1/journal_docs' && req.method() === 'GET') {
       const since = url.searchParams.get('synced_at')?.replace('gt.', '');
       const offset = Number(url.searchParams.get('offset') || 0);
@@ -727,6 +729,7 @@ function fakeCloud() {
     docs,
     photos,
     users,
+    meta,
     async attach(context) {
       await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'text/javascript' }, body: gsi }));
       await context.route(/^https:\/\/[a-z0-9]+\.supabase\.co\//, handle);
@@ -780,7 +783,7 @@ test('會員：Google 登入後同步日記、標籤、願景板與照片；換�
 
   // 登入後不再顯示「資料只存在本機」與備份提醒
   await a.page.click('#tab-today');
-  assert.equal(await a.page.isHidden('#privacy-note:not(.muted-by-nudge)'), true);
+  assert.equal(await a.page.isHidden('#login-bar'), true, '登入後頂端提醒消失');
 
   // 手機 B：全新的手機，登入同一個帳號
   const b = await newPage({ cloud: server, date: '2026-10-01T10:00:00' });
@@ -928,7 +931,7 @@ test('多寫幾件：寫滿三件後可以「再寫一件」，最多十件，�
   assert.equal(await page.locator('.win-list li').count(), 4);
 
   // 分享卡片照樣產生
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  const dl = await shareCard(page);
   assert.deepEqual(pngSize(await readFile(await dl.path())), [1080, 1920]);
 
   // 最多十件
@@ -950,7 +953,7 @@ test('稱呼：在設定填寫後出現在今日頁標題與分享卡片', async
   await page.click('#tab-today');
   assert.equal(await page.textContent('#entry-title'), '小雨，今天的三件成功小事');
   await page.fill('#item-0', '今天也好好照顧自己');
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  const dl = await shareCard(page);
   assert.deepEqual(pngSize(await readFile(await dl.path())), [1080, 1920]);
   await page.reload();
   assert.equal(await page.textContent('#entry-title'), '小雨，今天的三件成功小事');
@@ -959,4 +962,66 @@ test('稱呼：在設定填寫後出現在今日頁標題與分享卡片', async
   if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '63-settings.png') });
   assert.deepEqual(errors, []);
   await context.close();
+});
+
+test('分享預覽：先看到卡片，可以關閉不分享', async () => {
+  const { context, page, errors } = await newPage();
+  await page.fill('#item-0', '今天有好好吃早餐');
+  await page.click('#share-day');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.isVisible('#share-sheet'), true);
+  const size = await page.evaluate(() => [document.getElementById('share-img').naturalWidth, document.getElementById('share-img').naturalHeight]);
+  assert.deepEqual(size, [1080, 1920]);
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '81-share-preview.png') });
+  await page.click('#share-cancel');
+  assert.equal(await page.isHidden('#share-sheet'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('引導問題：可以寫下回答，只有回答也算有紀錄，回顧時看得到', async () => {
+  const { context, page, errors } = await newPage();
+  const q = await page.textContent('#chakra-prompt');
+  await page.fill('#prompt-answer', '跟家人說了謝謝');
+  await page.locator('#prompt-answer').blur();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(saved.reflection, { q, a: '跟家人說了謝謝' });
+  await page.reload();
+  assert.equal(await page.inputValue('#prompt-answer'), '跟家人說了謝謝');
+  await page.click('#tab-calendar');
+  assert.equal(await page.textContent('#stat-days'), '1');
+  await page.click('.cal-cell[data-date="2026-10-01"]');
+  assert.match(await page.textContent('#day-detail'), /跟家人說了謝謝/);
+  assert.equal(await page.textContent('#edit-day'), '編輯這一天');
+  // 清空回答且沒有寫成功時，這一天的紀錄就刪除
+  await page.click('#edit-day');
+  await page.fill('#prompt-answer', '');
+  await page.locator('#prompt-answer').blur();
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']), undefined);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('稱呼：存在帳號上，換一台裝置登入也是自己設定的稱呼', async () => {
+  const server = fakeCloud();
+  const a = await newPage({ cloud: server });
+  await signIn(a.page);
+  assert.equal(await a.page.inputValue('#display-name'), 'Amy Chen', '第一次登入先帶入 Google 名字');
+  await a.page.fill('#display-name', '小雨');
+  await a.page.press('#display-name', 'Enter');
+  await expectEventually(() => server.meta.get('uid-amy')?.sj_display_name === '小雨', '稱呼存到帳號上');
+
+  const b = await newPage({ cloud: server, date: '2026-10-01T10:00:00' });
+  await signIn(b.page);
+  assert.equal(await b.page.inputValue('#display-name'), '小雨');
+  await b.page.click('#tab-today');
+  assert.equal(await b.page.textContent('#entry-title'), '小雨，今天的三件成功小事');
+  // 已登入時，儲存狀態寫「同步到雲端」
+  await b.page.fill('#item-0', '換手機也找得回來');
+  await b.page.locator('#item-0').blur();
+  assert.match(await b.page.textContent('#save-status'), /雲端/);
+  assert.deepEqual(a.errors, []);
+  assert.deepEqual(b.errors, []);
+  await a.context.close();
+  await b.context.close();
 });

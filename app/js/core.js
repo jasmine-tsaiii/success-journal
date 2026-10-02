@@ -93,8 +93,15 @@ export function filledItems(entry) {
   return entry.items.filter((t) => typeof t === 'string' && t.trim() !== '');
 }
 
+/** 引導問題的回答：{ q: 當天的問題, a: 回答 }，沒有回答時為 null */
+export function cleanReflection(r) {
+  if (!r || typeof r !== 'object' || typeof r.a !== 'string' || !r.a.trim()) return null;
+  return { q: typeof r.q === 'string' ? r.q.slice(0, 200) : '', a: r.a.slice(0, 2000) };
+}
+
+/** 寫了任一件成功，或回答了引導問題，都算有紀錄 */
 export function hasRecord(entry) {
-  return filledItems(entry).length > 0;
+  return filledItems(entry).length > 0 || Boolean(cleanReflection(entry?.reflection));
 }
 
 /* ---------- 標籤 ---------- */
@@ -233,10 +240,9 @@ export function computeStats(entries, today) {
   let totalDays = 0;
   for (const [key, entry] of Object.entries(entries)) {
     if (!isValidKey(key)) continue;
-    const n = filledItems(entry).length;
-    if (n > 0) {
+    if (hasRecord(entry)) {
       totalDays++;
-      totalItems += n;
+      totalItems += filledItems(entry).length;
     }
   }
   return {
@@ -301,9 +307,11 @@ export function parseBackup(text) {
   for (const [key, entry] of Object.entries(data.entries)) {
     if (!isValidKey(key) || !entry || typeof entry !== 'object') continue;
     const items = cleanItems(entry.items).map((t) => t.slice(0, 2000));
-    if (!items.some((t) => t.trim())) continue;
+    const reflection = cleanReflection(entry.reflection);
+    if (!items.some((t) => t.trim()) && !reflection) continue;
     entries[key] = {
       items,
+      ...(reflection ? { reflection } : {}),
       tags: cleanTags(entry.tags, items.length),
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
     };
@@ -350,6 +358,11 @@ export function buildTextExport(entries, boards = []) {
       lines.push(`  ${++n}. ${first}${extra.length ? `  ${extra.map((tag) => `#${tag}`).join(' ')}` : ''}`);
       for (const r of rest) lines.push(`     ${r}`);
     });
+    const reflection = cleanReflection(entries[key].reflection);
+    if (reflection) {
+      if (reflection.q) lines.push(`  ✎ ${reflection.q}`);
+      for (const r of reflection.a.trim().split('\n')) lines.push(`    ${r}`);
+    }
     lines.push('');
   }
   const dreams = boards.filter((b) => b.items.some((it) => it.type === 'text'));

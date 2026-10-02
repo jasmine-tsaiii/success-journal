@@ -211,3 +211,20 @@ test('parseBackup：保留第四件之後的成功與標籤', async () => {
   assert.deepEqual(entries['2026-10-01'].items, ['a', 'b', 'c', 'd', 'e']);
   assert.deepEqual(entries['2026-10-01'].tags[4], ['學習']);
 });
+
+test('引導問題的回答：算有紀錄、備份保留、文字檔匯出', async () => {
+  const { cleanReflection, hasRecord, computeStats, parseBackup, buildTextExport } = await import('../app/js/core.js');
+  assert.equal(cleanReflection(null), null);
+  assert.equal(cleanReflection({ q: '問', a: '   ' }), null);
+  assert.deepEqual(cleanReflection({ q: '問', a: '答' }), { q: '問', a: '答' });
+  const onlyReflection = { items: ['', '', ''], reflection: { q: '今天你說出了哪一句真心話？', a: '我跟媽媽說謝謝' } };
+  assert.equal(hasRecord(onlyReflection), true);
+  const stats = computeStats({ '2026-10-01': onlyReflection }, '2026-10-01');
+  assert.equal(stats.totalDays, 1);
+  assert.equal(stats.totalItems, 0);
+  assert.equal(stats.streak, 1);
+  const { entries } = parseBackup(JSON.stringify({ app: 'success-journal', version: 2, entries: { '2026-10-01': onlyReflection } }));
+  assert.deepEqual(entries['2026-10-01'].reflection, onlyReflection.reflection);
+  const txt = buildTextExport({ '2026-10-01': { ...onlyReflection, items: ['早起', '', ''] } });
+  assert.match(txt, / {2}1\. 早起\n {2}✎ 今天你說出了哪一句真心話？\n {4}我跟媽媽說謝謝/);
+});
