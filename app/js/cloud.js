@@ -252,7 +252,7 @@ async function sha256Hex(text) {
  * 在 el 裡放 Google 登入按鈕。按下並選好帳號後，以 Google 的憑證登入 Supabase，
  * 授權畫面顯示的是我們自己的網址與名稱，而不是 Supabase 的網址。
  */
-export async function renderGoogleButton(el, { onSignedIn, onError, dark = false }) {
+export async function renderGoogleButton(el, { onSignedIn, onError }) {
   await loadGsi();
   const raw = crypto.getRandomValues(new Uint8Array(16)).reduce((s, b) => s + b.toString(16).padStart(2, '0'), '');
   const nonce = await sha256Hex(raw);
@@ -269,13 +269,14 @@ export async function renderGoogleButton(el, { onSignedIn, onError, dark = false
     },
   });
   el.textContent = '';
+  // 按鈕本身透明疊在我們自己畫的按鈕上，尺寸盡量蓋滿
   window.google.accounts.id.renderButton(el, {
     type: 'standard',
-    theme: dark ? 'filled_black' : 'outline',
+    theme: 'outline',
     size: 'large',
-    shape: 'pill',
-    text: 'continue_with',
+    shape: 'rectangular',
+    text: 'signin_with',
     locale: 'zh-TW',
-    width: Math.min(320, el.clientWidth || 320),
+    width: Math.min(400, Math.max(200, el.clientWidth || 320)),
   });
 }
