@@ -58,6 +58,7 @@
 
   --serif: 'SJ Serif', 'Noto Serif TC', 'Noto Serif CJK TC', 'Songti TC', 'PMingLiU', serif;
   --latin: 'SJ Latin', 'SJ Serif', 'Cormorant Garamond', Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
   --tabbar-h: 66px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   color-scheme: light;
@@ -418,41 +419,43 @@ main {
 
 .prompt-text {
   display: block;
-  font-size: 15.5px;
-  line-height: 1.85;
+  font-size: 17px;
+  line-height: 1.8;
+  color: var(--ink);
   margin: 0;
 }
 
+/* 回答：和問題用不同字體與底色，一眼分出「問題」和「我的答案」 */
 .prompt-answer {
   display: block;
   width: 100%;
-  margin-top: 10px;
-  padding: 2px 0 2px 14px;
+  min-height: 48px;
+  margin-top: 12px;
+  padding: 11px 14px;
   border: 0;
-  border-left: 1px solid transparent;
-  background: transparent;
+  border-left: 2px solid color-mix(in srgb, var(--day) 75%, transparent);
+  border-radius: 0;
+  background: var(--paper);
   color: var(--ink-2);
-  font: inherit;
+  font-family: var(--sans);
   font-size: 16px; /* iPhone 小於 16px 會在輸入時自動放大 */
-  line-height: 1.85;
+  font-weight: 400;
+  line-height: 1.75;
+  letter-spacing: 0.02em;
   resize: none;
   overflow: hidden;
-  transition: border-color 0.2s;
 }
 
-/* 空白時只是一行淡淡的邀請，不像表單 */
 .prompt-answer::placeholder {
   color: var(--muted);
-  opacity: 0.7;
-  font-size: 13px;
-  letter-spacing: 0.14em;
+  opacity: 0.8;
+  font-size: 14px;
+  letter-spacing: 0.06em;
 }
 
-/* 開始寫或已經寫了：左側一條細線，像在頁邊寫下的筆記 */
-.prompt-answer:focus,
-.prompt-answer:not(:placeholder-shown) {
+.prompt-answer:focus {
   outline: none;
-  border-left-color: color-mix(in srgb, var(--day) 70%, var(--accent));
+  border-left-color: var(--day);
 }
 
 .wins {
@@ -2374,4 +2377,9 @@ label.set-row {
 
 .login-bar:active {
   opacity: 0.7;
+}
+
+.detail-reflection p:last-child {
+  font-family: var(--sans);
+  color: var(--ink-2);
 }
