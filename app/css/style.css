@@ -2315,3 +2315,55 @@ label.set-row {
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* ---------- 今日頁頂端：尚未登入 ---------- */
+
+.login-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 14px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.login-bar[hidden] {
+  display: none;
+}
+
+.login-bar-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.login-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.login-bar-text b {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.login-bar-go {
+  flex: none;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.login-bar:active {
+  opacity: 0.7;
+}

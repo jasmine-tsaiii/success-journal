@@ -47,6 +47,11 @@
         <p class="mast-meta caps">Vision &amp; Wins<br><span id="issue-no"></span></p>
       </header>
       <p class="mast-sub">看見願景，也看見每天小小的成功</p>
+      <button type="button" class="login-bar" id="login-bar" data-goto="data" hidden>
+        <span class="login-bar-dot" aria-hidden="true"></span>
+        <span class="login-bar-text"><b>尚未登入</b>　日記只在這台裝置。登入 Google 帳號，找回並同步你的日記</span>
+        <span class="login-bar-go" aria-hidden="true">登入 →</span>
+      </button>
 
       <div class="date-row">
         <button type="button" class="icon-btn" id="prev-day" aria-label="前一天">‹</button>
@@ -99,15 +104,6 @@
         <button type="button" class="note-close" id="backup-later" aria-label="稍後再提醒">×</button>
       </aside>
 
-      <aside class="note-card" id="privacy-note" hidden>
-        <details>
-          <summary><span class="label-caps">Sync</span><span class="note-line">登入儲存資料</span></summary>
-          <p>還沒登入時，你的日記、願景板和照片只存在這台手機的瀏覽器裡；換手機或清除瀏覽器資料就會不見。</p>
-          <p><strong>用 Google 帳號登入</strong>，就會自動同步到雲端，換手機也找得回來。</p>
-          <button type="button" class="text-btn" data-goto="data">前往登入 →</button>
-        </details>
-        <button type="button" class="note-close" id="privacy-close" aria-label="收起提醒（7 天後再顯示）">×</button>
-      </aside>
     </section>
 
     <!-- 願景板 -->

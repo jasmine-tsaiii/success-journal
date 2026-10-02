@@ -252,13 +252,23 @@ function renderToday() {
   updateShareButton();
   if ($('backup-nudge')) updateBackupNudge();
   const updated = state.entries[key]?.updatedAt;
-  setSaveStatus(updated ? `已儲存在這台裝置・${formatTime(updated)}` : '');
+  setSaveStatus(updated ? savedText(updated) : '');
 }
 
 function formatTime(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** 已登入時強調「雲端」，沒登入時提醒只存在這台裝置 */
+function savedText(iso) {
+  const st = sync.status;
+  if (cloud.getSession()) {
+    if (st.state === 'ok' && st.lastSyncAt && Date.parse(st.lastSyncAt) >= Date.parse(iso)) return `已同步到雲端・${formatTime(st.lastSyncAt)}`;
+    return `已儲存・稍後自動同步到雲端`;
+  }
+  return `已儲存在這台裝置・${formatTime(iso)}`;
 }
 
 function setSaveStatus(text) {
@@ -299,7 +309,7 @@ function flushSave() {
     delete state.entries[key];
   }
   if (persist()) {
-    setSaveStatus(state.entries[key] ? `已儲存在這台裝置・${formatTime(state.entries[key].updatedAt)}` : '已清空這一天的紀錄');
+    setSaveStatus(state.entries[key] ? savedText(state.entries[key].updatedAt) : '已清空這一天的紀錄');
   }
 }
 
@@ -741,8 +751,6 @@ function updateBackupNudge() {
         ? `你已經記錄了 ${recordedDays} 天，還沒有備份過。登入 Google 帳號就會自動同步到雲端，換手機也不怕。`
         : `距離上次備份已經 ${daysSince} 天了。登入 Google 帳號就會自動同步，不用再手動備份。`;
   }
-  // 同時只顯示一個提醒；已登入雲端同步時不需要「資料只存在本機」的提醒
-  $('privacy-note').classList.toggle('muted-by-nudge', due || Boolean(cloud.getSession()));
 }
 
 /* ---------- 分享今天 ---------- */
@@ -1068,10 +1076,14 @@ const sync = initSync({
 
 function renderCloud() {
   const panel = $('cloud-panel');
+  renderLoginBar();
   if (!cloud.cloudConfigured()) {
     panel.hidden = true;
     return;
   }
+  // 同步完成後，今日頁的儲存狀態改成「已同步到雲端」
+  const entry = state.entries[state.date];
+  if (entry && !state.dirty && sync.status.state === 'ok') setSaveStatus(savedText(entry.updatedAt));
   panel.hidden = false;
   const session = cloud.getSession();
   $('cloud-out').hidden = Boolean(session);
@@ -1092,6 +1104,11 @@ function renderCloud() {
           : '尚未同步';
   $('cloud-status').textContent = text;
   $('cloud-sync').disabled = st.state === 'syncing';
+}
+
+/** 今日頁頂端：沒登入時提醒，避免以為資料不見了 */
+function renderLoginBar() {
+  $('login-bar').hidden = !cloud.cloudConfigured() || Boolean(cloud.getSession());
 }
 
 let buttonShown = false;
@@ -1117,8 +1134,9 @@ async function showGoogleButton() {
 
 async function afterSignIn(session) {
   buttonShown = false;
-  // 還沒設定稱呼時，先用 Google 帳號的名字（可以在設定裡改）
-  if (!displayName() && session.user.name) setDisplayName(session.user.name);
+  // 稱呼：帳號上有就用帳號上的；沒有的話，把這台裝置的稱呼（或 Google 名字）存到帳號上
+  if (session.user.displayName !== null) setDisplayName(session.user.displayName, { push: false });
+  else setDisplayName(displayName() || session.user.name || '');
   toast(`已登入 ${session.user.email}，正在同步⋯⋯`);
   renderCloud();
   updateBackupNudge();
@@ -1156,20 +1174,52 @@ function bindCloud() {
     }
   });
   renderCloud();
-  if (cloud.getSession()) sync.syncNow();
+  if (cloud.getSession()) {
+    sync.syncNow();
+    refreshName();
+  }
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && refreshName());
 }
 
 /* ---------- 稱呼 ---------- */
 
 const displayName = () => (state.settings.displayName || '').trim();
 
-function setDisplayName(value) {
+/** 設定稱呼；已登入時一併存到帳號上，換裝置登入也會跟著 */
+function setDisplayName(value, { push = true } = {}) {
   const name = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 12);
   state.settings = { ...state.settings, displayName: name };
+  if (push && cloud.getSession()) state.settings.namePending = true;
   saveSettings(state.settings);
   $('display-name').value = name;
   renderToday();
+  if (push) pushName();
   return name;
+}
+
+async function pushName() {
+  if (!cloud.getSession() || !state.settings.namePending) return;
+  try {
+    await cloud.saveProfile(displayName());
+    state.settings = { ...state.settings, namePending: false };
+    saveSettings(state.settings);
+  } catch {
+    /* 離線時先記著，下次再存 */
+  }
+}
+
+let lastNameCheck = 0;
+/** 在別的裝置改過稱呼時，這裡也跟著更新（還沒存上去的修改優先） */
+async function refreshName() {
+  if (!cloud.getSession() || Date.now() - lastNameCheck < 60000) return;
+  lastNameCheck = Date.now();
+  if (state.settings.namePending) return pushName();
+  try {
+    const remote = await cloud.fetchProfile();
+    if (remote !== null && remote !== displayName()) setDisplayName(remote, { push: false });
+  } catch {
+    /* 忽略 */
+  }
 }
 
 function bindDisplayName() {
@@ -1187,7 +1237,6 @@ function bindDisplayName() {
   });
 }
 
-const NOTE_SNOOZE_DAYS = 7;
 
 function bindBackupAndShare() {
   $('backup-now').addEventListener('click', exportJson);
@@ -1205,21 +1254,8 @@ function bindBackupAndShare() {
   updateBackupNudge();
 }
 
-function bindPrivacyNote() {
-  const note = $('privacy-note');
-  const until = Date.parse(state.settings.privacyNoteHiddenAt || '') + NOTE_SNOOZE_DAYS * 86400000;
-  note.hidden = Number.isFinite(until) && Date.now() < until;
-  $('privacy-close').addEventListener('click', () => {
-    note.hidden = true;
-    state.settings = { ...state.settings, privacyNoteHiddenAt: new Date().toISOString() };
-    saveSettings(state.settings);
-    toast('已收起，7 天後會再提醒你備份');
-  });
-}
-
 function init() {
   bind();
-  bindPrivacyNote();
   bindBackupAndShare();
   if (!state.settings.onboarded) {
     if (Object.keys(state.entries).length) {

@@ -33,7 +33,13 @@ function saveSession(data) {
     access_token: data.access_token,
     refresh_token: data.refresh_token,
     expires_at: data.expires_at || Math.floor(Date.now() / 1000) + (data.expires_in || 3600),
-    user: { id: data.user.id, email: data.user.email || meta.email || '', name: meta.full_name || meta.name || '' },
+    user: {
+      id: data.user.id,
+      email: data.user.email || meta.email || '',
+      name: meta.full_name || meta.name || '',
+      // 使用者在 App 裡設定的稱呼（存在帳號上，換裝置登入也找得到）；null 表示還沒設定過
+      displayName: typeof meta.sj_display_name === 'string' ? meta.sj_display_name : null,
+    },
   };
   localStorage.setItem(AUTH_KEY, JSON.stringify(session));
   return session;
@@ -131,6 +137,34 @@ export async function signOut() {
   } catch {
     /* 離線時登出：本機已清除登入狀態即可 */
   }
+}
+
+/* ---------- 稱呼（存在帳號資料上） ---------- */
+
+function updateStoredUser(user) {
+  const s = getSession();
+  if (!s || !user) return null;
+  return saveSession({ ...s, expires_at: s.expires_at, user });
+}
+
+/** 把稱呼存到帳號上 */
+export async function saveProfile(displayName) {
+  const res = await expectOk(
+    await api('/auth/v1/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { sj_display_name: displayName } }),
+    }),
+    '稱呼儲存失敗',
+  );
+  updateStoredUser(await res.json());
+}
+
+/** 取得帳號上的稱呼（在別的裝置改過時會不一樣）；還沒設定過時回傳 null */
+export async function fetchProfile() {
+  const res = await expectOk(await api('/auth/v1/user'), '讀取帳號資料失敗');
+  const s = updateStoredUser(await res.json());
+  return s ? s.user.displayName : null;
 }
 
 /* ---------- 日記文件 ---------- */
