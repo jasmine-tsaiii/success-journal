@@ -426,25 +426,33 @@ main {
 .prompt-answer {
   display: block;
   width: 100%;
-  margin-top: 8px;
-  padding: 4px 0;
+  margin-top: 10px;
+  padding: 2px 0 2px 14px;
   border: 0;
+  border-left: 1px solid transparent;
   background: transparent;
   color: var(--ink-2);
   font: inherit;
-  font-size: 16px;
-  line-height: 1.8;
+  font-size: 16px; /* iPhone 小於 16px 會在輸入時自動放大 */
+  line-height: 1.85;
   resize: none;
   overflow: hidden;
+  transition: border-color 0.2s;
 }
 
+/* 空白時只是一行淡淡的邀請，不像表單 */
 .prompt-answer::placeholder {
   color: var(--muted);
-  opacity: 0.75;
+  opacity: 0.7;
+  font-size: 13px;
+  letter-spacing: 0.14em;
 }
 
-.prompt-answer:focus {
+/* 開始寫或已經寫了：左側一條細線，像在頁邊寫下的筆記 */
+.prompt-answer:focus,
+.prompt-answer:not(:placeholder-shown) {
   outline: none;
+  border-left-color: color-mix(in srgb, var(--day) 70%, var(--accent));
 }
 
 .wins {
