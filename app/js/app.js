@@ -22,6 +22,7 @@ import {
   UNTAGGED,
   cleanTagName,
   cleanTags,
+  cleanReflection,
   computeTagStats,
   extractHashtags,
   itemTags,
@@ -48,7 +49,6 @@ const state = {
   settings: loadSettings(),
   tagList: loadTagList(DEFAULT_TAGS),
   dayTags: cleanTags(),
-  openPicker: null,
   period: 'month',
 };
 
@@ -70,7 +70,6 @@ function wireTextarea(ta, i) {
   ta.addEventListener('focus', () => {
     if (activeRow === i) return;
     activeRow = i;
-    if (state.openPicker !== i) state.openPicker = null;
     renderTagRows();
   });
 }
@@ -246,8 +245,9 @@ function renderToday() {
     autoGrow(ta);
   });
   state.dayTags = cleanTags(state.entries[key]?.tags, items.length);
+  $('prompt-answer').value = state.entries[key]?.reflection?.a || '';
+  autoGrow($('prompt-answer'));
   updateAddWin();
-  state.openPicker = null;
   renderTagRows();
   updateShareButton();
   if ($('backup-nudge')) updateBackupNudge();
@@ -284,8 +284,10 @@ function flushSave() {
   state.dirty = false;
   const key = state.date;
   const items = cleanItems(textareas.map((ta) => ta.value));
-  if (items.some((t) => t.trim())) {
-    state.entries[key] = { items, tags: cleanTags(state.dayTags, items.length), updatedAt: new Date().toISOString() };
+  const answer = $('prompt-answer').value;
+  const reflection = answer.trim() ? { q: chakraForDate(key).prompt, a: answer } : null;
+  if (items.some((t) => t.trim()) || reflection) {
+    state.entries[key] = { items, ...(reflection ? { reflection } : {}), tags: cleanTags(state.dayTags, items.length), updatedAt: new Date().toISOString() };
     // 文字裡新的 #標籤 自動加入標籤清單
     const fresh = items.flatMap(extractHashtags).filter((t) => !state.tagList.includes(t));
     if (fresh.length) {
@@ -303,25 +305,83 @@ function flushSave() {
 
 /* ---------- 標籤（今日頁） ---------- */
 
-function tagButton(label, { on = false, cls = 'tag-chip', onClick }) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = cls + (on ? ' on' : '');
-  b.textContent = label;
-  if (cls === 'tag-chip') b.setAttribute('aria-pressed', String(on));
-  b.addEventListener('click', onClick);
-  return b;
-}
-
 function toggleTag(i, tag) {
   const list = state.dayTags[i];
   state.dayTags[i] = list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag];
   state.dirty = true;
   flushSave();
-  renderTagRows();
 }
 
-let activeRow = null; // 正在書寫的那一件（只有它會出現「#」按鈕）
+let activeRow = null; // 正在書寫的那一件（只有它會出現標籤列）
+
+/** 點標籤時不要讓輸入框失去焦點，手機鍵盤才不會收起來又跳出來 */
+const keepFocus = (el) => el.addEventListener('mousedown', (e) => e.preventDefault());
+
+function tagChip(i, tag) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tag-chip';
+  b.textContent = `#${tag}`;
+  const sync = () => {
+    const on = state.dayTags[i].includes(tag);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  };
+  sync();
+  keepFocus(b);
+  b.addEventListener('click', () => {
+    toggleTag(i, tag);
+    sync();
+  });
+  return b;
+}
+
+/** 「＋ 自訂」：點了變成小輸入框，按 Enter 或離開時加入 */
+function customChip(i, strip) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'tag-chip tag-custom';
+  b.textContent = '＋ 自訂';
+  b.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'tag-custom-input';
+    input.maxLength = 12;
+    input.placeholder = '新標籤';
+    input.setAttribute('aria-label', '自訂標籤');
+    input.enterKeyHint = 'done';
+    let done = false;
+    const commit = () => {
+      if (done) return;
+      done = true;
+      const name = cleanTagName(input.value);
+      if (name) {
+        if (!state.tagList.includes(name)) {
+          state.tagList = [...state.tagList, name];
+          saveTagList(state.tagList);
+        }
+        if (!state.dayTags[i].includes(name)) toggleTag(i, name);
+      }
+      textareas[i].focus({ preventScroll: true });
+      renderTagRows();
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        commit();
+      }
+      if (e.key === 'Escape') {
+        input.value = '';
+        commit();
+      }
+    });
+    input.addEventListener('blur', commit);
+    b.replaceWith(input);
+    input.focus();
+    strip.scrollLeft = strip.scrollWidth;
+  });
+  return b;
+}
 
 function renderTagRows() {
   for (let i = 0; i < textareas.length; i++) {
@@ -329,50 +389,28 @@ function renderTagRows() {
     row.textContent = '';
     if (!state.dayTags[i]) state.dayTags[i] = [];
     const picked = state.dayTags[i];
-    const open = state.openPicker === i;
-    row.closest('li').classList.toggle('writing', activeRow === i || open);
+    const writing = activeRow === i;
+    row.closest('li').classList.toggle('writing', writing);
 
-    // 已選的標籤：小字顯示在事件下方，不搶版面
-    if (picked.length) {
-      const list = document.createElement('span');
-      list.className = 'tag-list';
-      list.textContent = picked.map((t) => `#${t}`).join(' ');
-      row.appendChild(list);
-    }
-    const toggle = tagButton(open ? '完成' : '#', {
-      cls: 'tag-toggle',
-      onClick: () => {
-        state.openPicker = open ? null : i;
-        activeRow = i;
-        renderTagRows();
-      },
-    });
-    toggle.setAttribute('aria-label', open ? '完成選擇標籤' : '加上標籤（選填）');
-    toggle.setAttribute('aria-expanded', String(open));
-    row.appendChild(toggle);
-    if (!open) continue;
-
-    const picker = document.createElement('div');
-    picker.className = 'tag-picker';
-    for (const tag of state.tagList) {
-      picker.appendChild(tagButton(tag, { on: picked.includes(tag), onClick: () => toggleTag(i, tag) }));
-    }
-    const form = document.createElement('form');
-    form.className = 'tag-new';
-    form.innerHTML = '<input type="text" maxlength="12" placeholder="自訂標籤" aria-label="自訂標籤"><button type="submit">新增</button>';
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = cleanTagName(form.querySelector('input').value);
-      if (!name) return;
-      if (!state.tagList.includes(name)) {
-        state.tagList = [...state.tagList, name];
-        saveTagList(state.tagList);
+    if (!writing) {
+      // 沒在寫的那幾件：已選的標籤以小字顯示，不搶版面
+      if (picked.length) {
+        const list = document.createElement('span');
+        list.className = 'tag-list';
+        list.textContent = picked.map((t) => `#${t}`).join(' ');
+        row.appendChild(list);
       }
-      if (!state.dayTags[i].includes(name)) toggleTag(i, name);
-      else renderTagRows();
-    });
-    picker.appendChild(form);
-    row.appendChild(picker);
+      continue;
+    }
+    // 正在寫的那一件：一排可以左右滑的標籤，點一下就選
+    const strip = document.createElement('div');
+    strip.className = 'tag-strip';
+    strip.setAttribute('role', 'group');
+    strip.setAttribute('aria-label', '標籤（選填）');
+    const tags = [...new Set([...picked, ...state.tagList])];
+    for (const tag of tags) strip.appendChild(tagChip(i, tag));
+    strip.appendChild(customChip(i, strip));
+    row.appendChild(strip);
   }
 }
 
@@ -593,11 +631,23 @@ function renderDayDetail() {
       ol.appendChild(li);
     });
     el.appendChild(ol);
-  } else {
+  } else if (!hasRecord(state.entries[key])) {
     const p = document.createElement('p');
     p.className = 'small';
     p.textContent = '這一天還沒有紀錄。想補寫的話，隨時都可以。';
     el.appendChild(p);
+  }
+  const reflection = cleanReflection(state.entries[key]?.reflection);
+  if (reflection) {
+    const box = document.createElement('div');
+    box.className = 'detail-reflection';
+    const q = document.createElement('p');
+    q.className = 'small';
+    q.textContent = reflection.q;
+    const a = document.createElement('p');
+    a.textContent = reflection.a;
+    box.append(q, a);
+    el.appendChild(box);
   }
   const aff = document.createElement('p');
   aff.className = 'detail-affirmation';
@@ -608,7 +658,7 @@ function renderDayDetail() {
   edit.type = 'button';
   edit.className = 'btn btn-primary';
   edit.id = 'edit-day';
-  edit.textContent = items.length ? '編輯這一天' : '補寫這一天';
+  edit.textContent = hasRecord(state.entries[key]) ? '編輯這一天' : '補寫這一天';
   edit.addEventListener('click', () => {
     state.date = key;
     showView('today');
@@ -701,12 +751,28 @@ function updateShareButton() {
   $('share-day').hidden = !textareas.some((ta) => ta.value.trim());
 }
 
+let shareBlob = null;
+let shareUrl = null;
+
+function closeShare() {
+  $('share-sheet').hidden = true;
+  if (shareUrl) URL.revokeObjectURL(shareUrl);
+  shareUrl = null;
+  shareBlob = null;
+  $('share-day').focus({ preventScroll: true });
+}
+
+/** 先顯示卡片預覽，確認後才分享或存圖 */
 async function shareToday() {
   flushSave();
   const key = state.date;
   const { chakra, affirmation } = chakraForDate(key);
-  const btn = $('share-day');
-  btn.disabled = true;
+  const img = $('share-img');
+  img.hidden = true;
+  $('share-loading').hidden = false;
+  $('share-confirm').disabled = true;
+  $('share-sheet').hidden = false;
+  $('share-cancel').focus({ preventScroll: true });
   try {
     const canvas = await renderDayCard({
       date: key,
@@ -717,13 +783,25 @@ async function shareToday() {
       colorName: chakra.colorName,
       name: displayName(),
     });
-    const result = await shareOrDownload(await canvasToBlob(canvas), `success-journal-${key}.png`, '今天的小成功');
-    if (result === 'downloaded') toast('已存下今天的小成功卡片');
+    if ($('share-sheet').hidden) return; // 製作途中按了關閉
+    shareBlob = await canvasToBlob(canvas);
+    shareUrl = URL.createObjectURL(shareBlob);
+    img.src = shareUrl;
+    img.hidden = false;
+    $('share-loading').hidden = true;
+    $('share-confirm').disabled = false;
   } catch {
+    closeShare();
     toast('產生卡片時發生問題，請再試一次');
-  } finally {
-    btn.disabled = false;
   }
+}
+
+async function confirmShare() {
+  if (!shareBlob) return;
+  const result = await shareOrDownload(shareBlob, `success-journal-${state.date}.png`, '今天的小成功');
+  if (result === 'cancelled') return;
+  closeShare();
+  if (result === 'downloaded') toast('已存下今天的小成功卡片');
 }
 
 /* ---------- 新手引導 ---------- */
@@ -843,6 +921,11 @@ function bind() {
   $('date-picker').addEventListener('change', (e) => e.target.value && goToDate(e.target.value));
 
   textareas.forEach(wireTextarea);
+  $('prompt-answer').addEventListener('input', (e) => {
+    autoGrow(e.target);
+    scheduleSave();
+  });
+  $('prompt-answer').addEventListener('blur', flushSave);
   $('add-win').addEventListener('click', () => {
     const ta = addRow();
     state.dayTags.push([]);
@@ -898,11 +981,12 @@ const boards = initBoards({ toast, stamp });
 
 function bindTags() {
   // 點在三件成功以外的地方：收起「#」按鈕與標籤選單
-  document.addEventListener('pointerdown', (e) => {
-    // 按「再寫一件」時先不收起，否則按鈕會往上跳、按不到
-    if (activeRow === null || e.target.closest('.win-list li, #add-win')) return;
+  // 用 click 而不是 pointerdown：先讓被點的按鈕（再寫一件、分享）收到點擊，再收起標籤列，
+  // 不然標籤列一收起，按鈕會往上跳，手指就點不到了
+  document.addEventListener('click', (e) => {
+    // 被點的元素已經換掉（例如「＋ 自訂」變成輸入框）時也不收起
+    if (activeRow === null || !e.target.isConnected || e.target.closest('.win-list li, #add-win')) return;
     activeRow = null;
-    state.openPicker = null;
     renderTagRows();
   });
   document.querySelectorAll('input[name="period"]').forEach((r) =>
@@ -1113,6 +1197,10 @@ function bindBackupAndShare() {
     updateBackupNudge();
   });
   $('share-day').addEventListener('click', shareToday);
+  $('share-confirm').addEventListener('click', confirmShare);
+  $('share-cancel').addEventListener('click', closeShare);
+  $('share-sheet').addEventListener('click', (e) => e.target === e.currentTarget && closeShare());
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && !$('share-sheet').hidden && closeShare());
   renderLastBackup();
   updateBackupNudge();
 }

@@ -77,6 +77,16 @@ async function newPage({ date = '2026-10-01T09:00:00', onboarding = false, cloud
   return { context, page, errors };
 }
 
+/** 按「分享今天的小成功」→ 預覽 → 分享／儲存，回傳下載的檔案 */
+async function shareCard(page) {
+  await page.click('#share-day');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.isEnabled('#share-confirm'), true);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-confirm')]);
+  await page.waitForSelector('#share-sheet', { state: 'hidden' });
+  return dl;
+}
+
 const shot = async (page, name) => {
   if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, `${name}.png`), fullPage: true });
 };
@@ -457,26 +467,26 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   await page.fill('#item-2', '十分鐘冥想');
   await page.locator('#item-2').blur();
 
-  // 平常不顯示「#」，只有正在寫的那一件才出現
-  assert.equal(await page.isVisible('#tags-0 .tag-toggle'), false);
-  assert.equal(await page.isVisible('#tags-2 .tag-toggle'), true);
-  // 第二件：點「#」→ 健康
+  // 平常不顯示標籤列，只有正在寫的那一件才出現
+  assert.equal(await page.locator('#tags-0 .tag-strip').count(), 0);
+  assert.equal(await page.isVisible('#tags-2 .tag-strip'), true);
+  // 第二件：點一下「#健康」，輸入框不會失去焦點
   await page.click('#item-1');
-  await page.click('#tags-1 .tag-toggle');
-  await page.click('#tags-1 .tag-picker .tag-chip >> text=健康');
+  await page.click('#tags-1 .tag-strip .tag-chip >> text=#健康');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'item-1');
+  assert.equal(await page.getAttribute('#tags-1 .tag-chip.on', 'aria-pressed'), 'true');
   // 第三件：自訂標籤「冥想」，同時勾選「自我照顧」
   await page.click('#item-2');
-  await page.click('#tags-2 .tag-toggle');
-  await page.fill('#tags-2 .tag-new input', '#冥想');
-  await page.click('#tags-2 .tag-new button');
-  await page.click('#tags-2 .tag-picker .tag-chip >> text=自我照顧');
-  await page.click('#tags-2 .tag-toggle');
+  await page.click('#tags-2 .tag-custom');
+  await page.fill('#tags-2 .tag-custom-input', '#冥想');
+  await page.press('#tags-2 .tag-custom-input', 'Enter');
+  await page.click('#tags-2 .tag-strip .tag-chip >> text=#自我照顧');
+  assert.equal(await page.textContent('#tags-2 .tag-strip .tag-chip.on'), '#冥想', '選好的標籤排在最前面');
+  // 點在其他地方：標籤列收起，已選標籤以小字顯示
+  await page.click('.prompt .label-caps');
+  assert.equal(await page.locator('#tags-2 .tag-strip').count(), 0);
   assert.equal(await page.textContent('#tags-2 .tag-list'), '#冥想 #自我照顧');
   assert.equal(await page.textContent('#tags-1 .tag-list'), '#健康');
-  // 點在其他地方：「#」收起，已選標籤仍以小字顯示
-  await page.click('.prompt-text');
-  assert.equal(await page.isVisible('#tags-2 .tag-toggle'), false);
-  assert.equal(await page.isVisible('#tags-2 .tag-list'), true);
   assert.equal(await page.locator('#tags-0 .tag-list').count(), 0, '文字裡的 #標籤 不重複顯示');
   await shot(page, '20-tags-today');
 
@@ -487,8 +497,7 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   await page.click('#prev-day');
   await page.fill('#item-0', '回完所有信件');
   await page.click('#item-0');
-  await page.click('#tags-0 .tag-toggle');
-  await page.click('#tags-0 .tag-picker .tag-chip >> text=工作');
+  await page.click('#tags-0 .tag-strip .tag-chip >> text=#工作');
 
   await page.click('#tab-calendar');
   assert.match(await page.textContent('#tag-hero'), /本月最多的是 #工作：1 件/);
@@ -613,7 +622,7 @@ test('分享今天：有寫內容時出現按鈕，產生 1080×1920 的卡片',
   await page.fill('#item-1', '把拖了一週的報告交出去了，主管說寫得很清楚 #工作');
   await page.fill('#item-2', '傍晚和朋友去河邊散步');
   assert.equal(await page.isVisible('#share-day'), true);
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  const dl = await shareCard(page);
   assert.equal(dl.suggestedFilename(), 'success-journal-2026-10-01.png');
   const png = await readFile(await dl.path());
   assert.deepEqual(pngSize(png), [1080, 1920]);
@@ -928,7 +937,7 @@ test('多寫幾件：寫滿三件後可以「再寫一件」，最多十件，�
   assert.equal(await page.locator('.win-list li').count(), 4);
 
   // 分享卡片照樣產生
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  const dl = await shareCard(page);
   assert.deepEqual(pngSize(await readFile(await dl.path())), [1080, 1920]);
 
   // 最多十件
@@ -950,13 +959,51 @@ test('稱呼：在設定填寫後出現在今日頁標題與分享卡片', async
   await page.click('#tab-today');
   assert.equal(await page.textContent('#entry-title'), '小雨，今天的三件成功小事');
   await page.fill('#item-0', '今天也好好照顧自己');
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-day')]);
+  const dl = await shareCard(page);
   assert.deepEqual(pngSize(await readFile(await dl.path())), [1080, 1920]);
   await page.reload();
   assert.equal(await page.textContent('#entry-title'), '小雨，今天的三件成功小事');
   await page.click('#tab-data');
   assert.equal(await page.inputValue('#display-name'), '小雨');
   if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '63-settings.png') });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('分享預覽：先看到卡片，可以關閉不分享', async () => {
+  const { context, page, errors } = await newPage();
+  await page.fill('#item-0', '今天有好好吃早餐');
+  await page.click('#share-day');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.isVisible('#share-sheet'), true);
+  const size = await page.evaluate(() => [document.getElementById('share-img').naturalWidth, document.getElementById('share-img').naturalHeight]);
+  assert.deepEqual(size, [1080, 1920]);
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '81-share-preview.png') });
+  await page.click('#share-cancel');
+  assert.equal(await page.isHidden('#share-sheet'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('引導問題：可以寫下回答，只有回答也算有紀錄，回顧時看得到', async () => {
+  const { context, page, errors } = await newPage();
+  const q = await page.textContent('#chakra-prompt');
+  await page.fill('#prompt-answer', '跟家人說了謝謝');
+  await page.locator('#prompt-answer').blur();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(saved.reflection, { q, a: '跟家人說了謝謝' });
+  await page.reload();
+  assert.equal(await page.inputValue('#prompt-answer'), '跟家人說了謝謝');
+  await page.click('#tab-calendar');
+  assert.equal(await page.textContent('#stat-days'), '1');
+  await page.click('.cal-cell[data-date="2026-10-01"]');
+  assert.match(await page.textContent('#day-detail'), /跟家人說了謝謝/);
+  assert.equal(await page.textContent('#edit-day'), '編輯這一天');
+  // 清空回答且沒有寫成功時，這一天的紀錄就刪除
+  await page.click('#edit-day');
+  await page.fill('#prompt-answer', '');
+  await page.locator('#prompt-answer').blur();
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']), undefined);
   assert.deepEqual(errors, []);
   await context.close();
 });

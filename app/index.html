@@ -72,7 +72,8 @@
 
       <div class="prompt">
         <p class="label-caps">Prompt</p>
-        <p class="prompt-text" id="chakra-prompt"></p>
+        <label class="prompt-text" id="chakra-prompt" for="prompt-answer"></label>
+        <textarea class="prompt-answer" id="prompt-answer" rows="1" maxlength="2000" placeholder="寫下你的回答（選填）"></textarea>
       </div>
 
       <form class="wins" id="entry-form" autocomplete="off">
@@ -414,6 +415,21 @@
       <div class="ob-actions">
         <button type="button" class="text-btn" id="ob-skip">略過</button>
         <button type="button" class="btn btn-primary" id="ob-next">下一步</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="share-sheet" id="share-sheet" role="dialog" aria-modal="true" aria-labelledby="share-title" hidden>
+    <div class="share-inner">
+      <h2 class="visually-hidden" id="share-title">分享預覽</h2>
+      <div class="share-frame">
+        <img id="share-img" alt="今天的小成功卡片預覽" hidden>
+        <p class="share-loading" id="share-loading">正在製作卡片⋯⋯</p>
+      </div>
+      <p class="small share-hint">手機上也可以長按圖片，直接存到相簿。</p>
+      <div class="share-actions">
+        <button type="button" class="btn" id="share-cancel">關閉</button>
+        <button type="button" class="btn btn-primary" id="share-confirm" disabled>分享／儲存</button>
       </div>
     </div>
   </div>
