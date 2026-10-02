@@ -2323,7 +2323,7 @@ label.set-row {
   align-items: center;
   gap: 10px;
   width: 100%;
-  margin: 14px 0 4px;
+  margin: 22px 0 0;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
