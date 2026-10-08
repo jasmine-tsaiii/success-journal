@@ -8,6 +8,9 @@ import {
   cleanThanksTo,
   filledThanks,
   computeThanksStats,
+  collectThanks,
+  pickThanks,
+  relativeDay,
   addDays,
   buildBackup,
   buildTextExport,
@@ -607,6 +610,49 @@ function renderStats() {
   $('stat-thanks').hidden = t.total === 0;
   $('stat-thanks').textContent = `♡ 累積感謝 ${t.total} 次${t.top ? `・最常感謝的是${t.top.who}（${t.top.count} 次）` : ''}`;
   renderTagReport();
+  renderJar();
+}
+
+/* ---------- 感恩抽屜 ---------- */
+
+let jarNote = null;
+
+function renderJar(draw = false) {
+  const notes = collectThanks(state.entries);
+  const has = notes.length > 0;
+  $('jar-empty').hidden = has;
+  $('jar-note').hidden = !has;
+  $('jar-actions').hidden = !has;
+  if (!has) {
+    jarNote = null;
+    return;
+  }
+  const stillThere = jarNote && notes.some((n) => n.date === jarNote.date && n.text === jarNote.text);
+  if (draw || !stillThere) jarNote = pickThanks(notes, todayKey(), jarNote);
+  const today = todayKey();
+  $('jar-when').textContent = `${relativeDay(jarNote.date, today)}・${dotDate(jarNote.date)}`;
+  $('jar-text').textContent = jarNote.text;
+  $('jar-to').textContent = jarNote.to.length ? `謝謝${jarNote.to.join('・')}` : '';
+  $('jar-to').hidden = !jarNote.to.length;
+  $('jar-draw').hidden = notes.length < 2;
+}
+
+function bindJar() {
+  $('jar-draw').addEventListener('click', () => {
+    const note = $('jar-note');
+    note.classList.remove('drawn');
+    void note.offsetWidth; // 重新播放抽出的動畫
+    renderJar(true);
+    note.classList.add('drawn');
+  });
+  $('jar-open').addEventListener('click', () => {
+    if (!jarNote) return;
+    const [y, m] = jarNote.date.split('-').map(Number);
+    state.month = { y, m };
+    state.selected = jarNote.date;
+    renderCalendar();
+    $('day-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 const PERIOD_LABEL = { week: '本週', month: '本月', year: '今年', all: '全部' };
@@ -1446,6 +1492,7 @@ function init() {
   bindTags();
   bindCloud();
   bindDisplayName();
+  bindJar();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }
