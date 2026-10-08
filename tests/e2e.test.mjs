@@ -1064,3 +1064,32 @@ test('感恩日記：預設一格、選謝謝誰、可再寫一件、只寫感�
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('感恩抽屜：沒有感恩時顯示說明；有了之後隨機抽出以前的一則，可以再抽、可以看那一天', async () => {
+  const { context, page, errors } = await newPage();
+  await page.click('#tab-calendar');
+  assert.equal(await page.isVisible('#jar-empty'), true);
+  assert.equal(await page.isHidden('#jar-note'), true);
+  await page.evaluate(() => {
+    localStorage.setItem('success-journal.entries.v1', JSON.stringify({
+      '2026-09-10': { items: ['', '', ''], gratitude: ['爸爸下雨天來載我'], gratitudeTo: [['家人']], updatedAt: '2026-09-10T12:00:00Z' },
+      '2026-09-24': { items: ['', '', ''], gratitude: ['同事幫我把報告看過一遍'], gratitudeTo: [['同事']], updatedAt: '2026-09-24T12:00:00Z' },
+    }));
+  });
+  await page.reload();
+  await page.click('#tab-calendar');
+  assert.equal(await page.isHidden('#jar-empty'), true);
+  const first = await page.textContent('#jar-text');
+  assert.ok(['爸爸下雨天來載我', '同事幫我把報告看過一遍'].includes(first));
+  assert.match(await page.textContent('#jar-when'), /週前・2026\.09\./);
+  await page.click('#jar-draw');
+  const second = await page.textContent('#jar-text');
+  assert.notEqual(second, first, '再抽一張會換成另一則');
+  if (SCREENSHOT_DIR) await page.locator('#jar').screenshot({ path: join(SCREENSHOT_DIR, '100-jar.png') });
+  await page.click('#jar-open');
+  const date = second.startsWith('爸爸') ? '2026-09-10' : '2026-09-24';
+  assert.equal(await page.locator(`.cal-cell.selected[data-date="${date}"]`).count(), 1);
+  assert.match(await page.textContent('#day-detail'), new RegExp(second));
+  assert.deepEqual(errors, []);
+  await context.close();
+});

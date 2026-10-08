@@ -251,3 +251,29 @@ test('感恩日記：預設一格、最多五件、算有紀錄、統計最常�
   const txt = buildTextExport({ '2026-10-01': { items: ['早起', '', ''], gratitude: ['媽媽煮的湯'], gratitudeTo: [['家人']] } });
   assert.match(txt, / {2}1\. 早起\n {2}♡ 媽媽煮的湯（謝謝家人）/);
 });
+
+test('感恩抽屜：收集小紙條、相對時間、隨機抽且不重複上一張', async () => {
+  const { collectThanks, relativeDay, pickThanks } = await import('../app/js/core.js');
+  const notes = collectThanks({
+    '2026-09-10': { gratitude: ['爸爸載我', ''], gratitudeTo: [['家人'], []] },
+    '2026-10-08': { gratitude: ['今天的陽光'], gratitudeTo: [['大自然']] },
+    '2026-10-01': { items: ['a'] },
+    bad: { gratitude: ['x'] },
+  });
+  assert.deepEqual(notes.map((n) => n.date), ['2026-10-08', '2026-09-10']);
+  assert.deepEqual(notes[1].to, ['家人']);
+  assert.equal(relativeDay('2026-10-08', '2026-10-08'), '今天');
+  assert.equal(relativeDay('2026-10-07', '2026-10-08'), '昨天');
+  assert.equal(relativeDay('2026-10-05', '2026-10-08'), '3 天前');
+  assert.equal(relativeDay('2026-09-17', '2026-10-08'), '3 週前');
+  assert.equal(relativeDay('2026-07-01', '2026-10-08'), '3 個月前');
+  assert.equal(relativeDay('2024-10-01', '2026-10-08'), '2 年前');
+  // 優先抽今天以前的
+  assert.equal(pickThanks(notes, '2026-10-08', null, () => 0).text, '爸爸載我');
+  // 只有今天的時候也抽得到
+  assert.equal(pickThanks([notes[0]], '2026-10-08').text, '今天的陽光');
+  // 不重複上一張
+  const many = collectThanks({ '2026-09-01': { gratitude: ['a', 'b'] } });
+  for (let i = 0; i < 10; i++) assert.equal(pickThanks(many, '2026-10-08', many[0]).text, 'b');
+  assert.equal(pickThanks([], '2026-10-08'), null);
+});

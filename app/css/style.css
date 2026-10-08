@@ -2492,3 +2492,83 @@ label.set-row {
   margin-right: -16px;
   padding-right: 16px;
 }
+
+/* ---------- 感恩抽屜 ---------- */
+
+.jar {
+  margin-top: 26px;
+  padding-top: 16px;
+  border-top: 1.5px solid var(--ink);
+}
+
+.jar-note {
+  position: relative;
+  margin: 22px 6px 10px;
+  padding: 26px 22px 18px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+  transform: rotate(-1deg);
+}
+
+.jar-note.drawn {
+  animation: jar-draw 0.45s ease;
+}
+
+@keyframes jar-draw {
+  from {
+    opacity: 0;
+    transform: translateY(14px) rotate(2deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-1deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jar-note.drawn {
+    animation: none;
+  }
+}
+
+.jar-when {
+  font-size: 12.5px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.jar-text {
+  font-size: 18px;
+  line-height: 1.8;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.jar-text::before {
+  content: '♡ ';
+  color: var(--accent);
+}
+
+.jar-to {
+  font-size: 13px;
+  color: var(--ink-2);
+  margin: 8px 0 0;
+  text-align: right;
+}
+
+.jar-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.jar-empty {
+  margin-top: 6px;
+}
+
+.jar-actions[hidden],
+.jar-actions [hidden] {
+  display: none;
+}

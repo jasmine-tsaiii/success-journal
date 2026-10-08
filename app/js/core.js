@@ -127,6 +127,40 @@ export function filledThanks(entry) {
   return entry.gratitude.filter((t) => typeof t === 'string' && t.trim() !== '');
 }
 
+/** 感恩抽屜：所有寫過的感恩小紙條 [{ date, text, to }]，由新到舊 */
+export function collectThanks(entries) {
+  const out = [];
+  for (const key of Object.keys(entries).filter(isValidKey).sort().reverse()) {
+    const entry = entries[key];
+    if (!entry || !Array.isArray(entry.gratitude)) continue;
+    const to = cleanThanksTo(entry.gratitudeTo, entry.gratitude.length);
+    entry.gratitude.forEach((t, i) => {
+      if (typeof t === 'string' && t.trim()) out.push({ date: key, text: t.trim(), to: to[i] || [] });
+    });
+  }
+  return out;
+}
+
+/** 「3 天前」「2 週前」「1 個月前」 */
+export function relativeDay(key, today) {
+  const d = dayNumber(today) - dayNumber(key);
+  if (d <= 0) return '今天';
+  if (d === 1) return '昨天';
+  if (d < 7) return `${d} 天前`;
+  if (d < 30) return `${Math.floor(d / 7)} 週前`;
+  if (d < 365) return `${Math.floor(d / 30)} 個月前`;
+  return `${Math.floor(d / 365)} 年前`;
+}
+
+/** 隨機抽一張，優先抽今天以前的；盡量不和上一張相同 */
+export function pickThanks(notes, today, prev = null, rand = Math.random) {
+  const past = notes.filter((n) => n.date < today);
+  let pool = past.length ? past : notes;
+  if (pool.length > 1 && prev) pool = pool.filter((n) => !(n.date === prev.date && n.text === prev.text));
+  if (!pool.length) return null;
+  return pool[Math.floor(rand() * pool.length)];
+}
+
 /** 寫了任一件成功、感恩，或回答了引導問題，都算有紀錄 */
 export function hasRecord(entry) {
   return filledItems(entry).length > 0 || filledThanks(entry).length > 0 || Boolean(cleanReflection(entry?.reflection));
