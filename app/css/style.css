@@ -2420,9 +2420,8 @@ label.set-row {
 /* ---------- 感恩日記 ---------- */
 
 .thanks {
-  /* 卡片往左右延伸到頁邊留白，讓裡面的 ♡ 和文字跟上面的 01 與文字對齊 */
-  margin: 30px -16px 0 -18px;
-  padding: 16px 16px 6px 16px;
+  margin-top: 30px;
+  padding: 16px 16px 6px;
   background: var(--paper);
   border-left: 2px solid color-mix(in srgb, var(--day) 75%, transparent);
 }
@@ -2448,7 +2447,7 @@ label.set-row {
 .thanks-list li {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 12px;
   padding: 8px 0 6px;
   border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
 }
@@ -2459,8 +2458,8 @@ label.set-row {
 
 .thanks-num {
   flex: none;
-  width: 30px; /* 與成功小事的 01 同寬 */
-  font-size: 20px;
+  width: 22px;
+  font-size: 18px;
   line-height: 1.95;
   color: var(--day);
 }
