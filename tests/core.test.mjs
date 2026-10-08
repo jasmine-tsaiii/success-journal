@@ -228,3 +228,26 @@ test('引導問題的回答：算有紀錄、備份保留、文字檔匯出', as
   const txt = buildTextExport({ '2026-10-01': { ...onlyReflection, items: ['早起', '', ''] } });
   assert.match(txt, / {2}1\. 早起\n {2}✎ 今天你說出了哪一句真心話？\n {4}我跟媽媽說謝謝/);
 });
+
+test('感恩日記：預設一格、最多五件、算有紀錄、統計最常感謝的對象、備份與匯出', async () => {
+  const { cleanThanks, cleanThanksTo, hasRecord, computeThanksStats, parseBackup, buildTextExport, MAX_THANKS } = await import('../app/js/core.js');
+  assert.deepEqual(cleanThanks(undefined), ['']);
+  assert.deepEqual(cleanThanks(['謝謝媽媽', '', ' ']), ['謝謝媽媽']);
+  assert.equal(cleanThanks(Array(9).fill('a')).length, MAX_THANKS);
+  assert.deepEqual(cleanThanksTo([['家人', '不存在的', '家人']], 1), [['家人']]);
+  const e = (g, to) => ({ items: ['', '', ''], gratitude: g, gratitudeTo: to });
+  assert.equal(hasRecord(e(['謝謝同事幫忙'], [['同事']])), true);
+  assert.equal(hasRecord(e([''], [[]])), false);
+  const stats = computeThanksStats({
+    '2026-10-01': e(['媽媽煮的湯', '路人幫我撐傘'], [['家人'], ['陌生人']]),
+    '2026-10-02': e(['爸爸載我'], [['家人']]),
+    bad: e(['x'], [['家人']]),
+  });
+  assert.deepEqual(stats, { total: 3, top: { who: '家人', count: 2 } });
+  assert.deepEqual(computeThanksStats({}), { total: 0, top: null });
+  const { entries } = parseBackup(JSON.stringify({ app: 'success-journal', version: 2, entries: { '2026-10-01': e(['媽媽煮的湯', ''], [['家人', 'x'], []]) } }));
+  assert.deepEqual(entries['2026-10-01'].gratitude, ['媽媽煮的湯']);
+  assert.deepEqual(entries['2026-10-01'].gratitudeTo, [['家人']]);
+  const txt = buildTextExport({ '2026-10-01': { items: ['早起', '', ''], gratitude: ['媽媽煮的湯'], gratitudeTo: [['家人']] } });
+  assert.match(txt, / {2}1\. 早起\n {2}♡ 媽媽煮的湯（謝謝家人）/);
+});

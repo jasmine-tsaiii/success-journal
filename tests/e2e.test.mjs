@@ -1025,3 +1025,42 @@ test('稱呼：存在帳號上，換一台裝置登入也是自己設定的稱�
   await a.context.close();
   await b.context.close();
 });
+
+test('感恩日記：預設一格、選謝謝誰、可再寫一件、只寫感恩也算紀錄、回顧與分享都看得到', async () => {
+  const { context, page, errors } = await newPage();
+  assert.equal(await page.locator('#thanks-list li').count(), 1, '預設一格');
+  assert.equal(await page.isHidden('#add-thanks'), true);
+  await page.fill('#thanks-0', '媽媽煮了我最愛的湯');
+  await page.click('#thanks-to-0 .tag-chip >> text=家人');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'thanks-0', '點對象時不會收起鍵盤');
+  assert.equal(await page.isVisible('#add-thanks'), true);
+  await page.click('#add-thanks');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'thanks-1');
+  await page.fill('#thanks-1', '下雨時路人借我傘');
+  await page.click('#thanks-to-1 .tag-chip >> text=陌生人');
+  await page.click('.prompt .label-caps');
+  assert.equal(await page.textContent('#thanks-to-0 .tag-list'), '謝謝 家人');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(saved.gratitude, ['媽媽煮了我最愛的湯', '下雨時路人借我傘']);
+  assert.deepEqual(saved.gratitudeTo, [['家人'], ['陌生人']]);
+  assert.equal(await page.isVisible('#share-day'), true, '只寫感恩也能分享');
+  if (SCREENSHOT_DIR) await page.locator('.thanks').screenshot({ path: join(SCREENSHOT_DIR, '96-thanks.png') });
+
+  // 分享卡片
+  const dl = await shareCard(page);
+  assert.deepEqual(pngSize(await readFile(await dl.path())), [1080, 1920]);
+
+  // 重新整理後還在
+  await page.reload();
+  assert.equal(await page.inputValue('#thanks-1'), '下雨時路人借我傘');
+
+  // 回顧：算一天紀錄、累積感謝、月曆小心
+  await page.click('#tab-calendar');
+  assert.equal(await page.textContent('#stat-days'), '1');
+  assert.match(await page.textContent('#stat-thanks'), /累積感謝 2 次・最常感謝的是家人/);
+  assert.equal(await page.locator('.cal-cell.thanked[data-date="2026-10-01"]').count(), 1);
+  await page.click('.cal-cell[data-date="2026-10-01"]');
+  assert.match(await page.textContent('#day-detail'), /媽媽煮了我最愛的湯[\s\S]*謝謝家人/);
+  assert.deepEqual(errors, []);
+  await context.close();
+});

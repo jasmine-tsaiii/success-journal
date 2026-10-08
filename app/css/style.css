@@ -2383,3 +2383,112 @@ label.set-row {
   font-family: var(--sans);
   color: var(--ink-2);
 }
+
+/* ---------- 感恩日記 ---------- */
+
+.thanks {
+  margin-top: 30px;
+  padding: 16px 16px 6px;
+  background: var(--paper);
+  border-left: 2px solid color-mix(in srgb, var(--day) 75%, transparent);
+}
+
+.thanks .label-caps {
+  color: var(--day-label);
+}
+
+.thanks .section-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
+  letter-spacing: 0.12em;
+  margin-bottom: 4px;
+}
+
+.thanks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.thanks-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+}
+
+.thanks-list li:last-child {
+  border-bottom: 0;
+}
+
+.thanks-num {
+  flex: none;
+  width: 22px;
+  font-size: 18px;
+  line-height: 1.95;
+  color: var(--day);
+}
+
+.thanks .add-win {
+  margin: 4px 0 8px;
+}
+
+.thanks-to-lead {
+  flex: none;
+  align-self: center;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+/* 月曆：有寫感恩的日子，右上角一顆小心 */
+.cal-cell.thanked {
+  position: relative;
+}
+
+.cal-cell.thanked::after {
+  content: '♡';
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.stats-thanks {
+  margin-top: -6px;
+}
+
+.detail-thanks {
+  margin-top: 14px;
+}
+
+.detail-thanks ul {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+
+.detail-thanks li {
+  padding: 4px 0 4px 20px;
+  position: relative;
+}
+
+.detail-thanks li::before {
+  content: '♡';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+.detail-thanks .detail-tags {
+  display: block;
+}
+
+.thanks .tag-strip {
+  margin-right: -16px;
+  padding-right: 16px;
+}
