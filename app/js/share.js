@@ -82,7 +82,7 @@ function grain(ctx) {
  * 今日卡片。day = { date: '2026-10-01', week: 'Thu · 週四', wins: [..], affirmation, color, colorName, name? }
  */
 export async function renderDayCard(day) {
-  await ensureFonts(`${day.wins.join('')}${day.affirmation}${day.name || ''}的小成功還有件今日色彩成功日記看見願景也看見每天小小的成功`);
+  await ensureFonts(`${day.wins.join('')}${(day.thanks || []).join('')}♡${day.affirmation}${day.name || ''}的小成功還有件今日色彩成功日記看見願景也看見每天小小的成功`);
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -116,19 +116,21 @@ export async function renderDayCard(day) {
   const many = wins.length > 3;
   ctx.fillStyle = C.accent;
   ctx.font = `600 28px ${LATIN}`;
-  spaced(ctx, many ? 'LITTLE WINS' : 'THREE LITTLE WINS', M, 560, 8);
+  if (wins.length) spaced(ctx, many ? 'LITTLE WINS' : 'THREE LITTLE WINS', M, 560, 8);
+  else if (!(day.thanks || []).some((t) => t.trim())) spaced(ctx, 'THREE LITTLE WINS', M, 560, 8);
   const name = (day.name || '').trim();
   if (name) {
     ctx.fillStyle = C.ink2;
     ctx.font = `500 30px ${SERIF}`;
     spaced(ctx, `${name}${/[A-Za-z0-9]$/.test(name) ? ' ' : ''}的小成功`, W - M, 562, 4, 'right');
   }
-  let y = 650;
+  let y = wins.length ? 650 : 560;
   const fs = many ? 42 : 50;
   const lh = many ? 66 : 80;
   const gap = many ? 58 : 74;
   const maxLines = many ? 2 : 4;
-  const limit = 1290;
+  const thanks = (day.thanks || []).filter((t) => t.trim()).slice(0, 3);
+  const limit = thanks.length ? 1060 : 1290;
   const textX = M + 104;
   const maxW = W - M - textX;
   for (let i = 0; i < wins.length; i++) {
@@ -153,6 +155,27 @@ export async function renderDayCard(day) {
     ctx.fillStyle = C.rule;
     ctx.fillRect(M, y - (gap - 20), W - M * 2, 2);
     y += 40;
+  }
+
+  // 感恩
+  if (thanks.length) {
+    y += 6;
+    ctx.fillStyle = day.color;
+    ctx.font = `600 26px ${LATIN}`;
+    spaced(ctx, 'THANK YOU', M, y, 8);
+    y += 70;
+    for (const t of thanks) {
+      ctx.font = `500 40px ${SERIF}`;
+      let lines = wrapText(t.trim(), maxW, (str) => ctx.measureText(str).width + [...str].length * 2);
+      if (lines.length > 2) lines = [lines[0], `${lines[1].slice(0, -1)}⋯`];
+      if (y + lines.length * 62 > 1340) break;
+      ctx.fillStyle = day.color;
+      ctx.font = `500 40px ${SERIF}`;
+      ctx.fillText('♡', M + 8, y);
+      ctx.fillStyle = C.ink2;
+      lines.forEach((line, j) => spaced(ctx, line, textX, y + j * 62, 2));
+      y += lines.length * 62 + 26;
+    }
   }
 
   // 肯定語紙卡

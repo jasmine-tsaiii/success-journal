@@ -2,6 +2,12 @@ import { CHAKRAS } from './chakras.js';
 import {
   ITEMS_PER_DAY,
   MAX_ITEMS,
+  MAX_THANKS,
+  THANKS_TO,
+  cleanThanks,
+  cleanThanksTo,
+  filledThanks,
+  computeThanksStats,
   addDays,
   buildBackup,
   buildTextExport,
@@ -49,6 +55,7 @@ const state = {
   settings: loadSettings(),
   tagList: loadTagList(DEFAULT_TAGS),
   dayTags: cleanTags(),
+  thanksTo: [[]],
   period: 'month',
 };
 
@@ -121,6 +128,113 @@ function updateAddWin() {
   const many = textareas.length > ITEMS_PER_DAY;
   $('entry-title').textContent = `${name ? `${name}，` : ''}${day}的${many ? '' : '三件'}成功小事`;
   $('wins-label').textContent = many ? 'Little Wins' : 'Three Little Wins';
+}
+
+/* ---------- 感恩日記 ---------- */
+
+const thanksAreas = [];
+let activeThanks = null; // 正在寫的那一件感恩（只有它會出現「謝謝誰」）
+
+function addThanksRow() {
+  const i = thanksAreas.length;
+  const li = document.createElement('li');
+  const num = document.createElement('span');
+  num.className = 'thanks-num';
+  num.setAttribute('aria-hidden', 'true');
+  num.textContent = '♡';
+  const body = document.createElement('div');
+  body.className = 'win-body';
+  const label = document.createElement('label');
+  label.className = 'visually-hidden';
+  label.htmlFor = `thanks-${i}`;
+  label.textContent = `第 ${i + 1} 件感恩`;
+  const ta = document.createElement('textarea');
+  ta.id = `thanks-${i}`;
+  ta.rows = 1;
+  ta.maxLength = 2000;
+  ta.placeholder = i === 0 ? '今天，我想謝謝⋯⋯' : '還想謝謝⋯⋯';
+  const to = document.createElement('div');
+  to.className = 'win-tags';
+  to.id = `thanks-to-${i}`;
+  body.append(label, ta, to);
+  li.append(num, body);
+  $('thanks-list').appendChild(li);
+  thanksAreas.push(ta);
+  ta.addEventListener('input', () => {
+    autoGrow(ta);
+    scheduleSave();
+    updateShareButton();
+    updateAddThanks();
+  });
+  ta.addEventListener('blur', flushSave);
+  ta.addEventListener('focus', () => {
+    if (activeThanks === i) return;
+    activeThanks = i;
+    renderThanksTo();
+  });
+  return ta;
+}
+
+function setThanksCount(n) {
+  const count = Math.min(Math.max(n, 1), MAX_THANKS);
+  while (thanksAreas.length < count) addThanksRow();
+  while (thanksAreas.length > count) thanksAreas.pop().closest('li').remove();
+}
+
+function updateAddThanks() {
+  const last = thanksAreas[thanksAreas.length - 1];
+  $('add-thanks').hidden = thanksAreas.length >= MAX_THANKS || !last.value.trim();
+}
+
+/** 「謝謝誰」：正在寫的那一件顯示一排選項，其他的以小字顯示已選的對象 */
+function renderThanksTo() {
+  thanksAreas.forEach((ta, i) => {
+    const row = $(`thanks-to-${i}`);
+    row.textContent = '';
+    if (!state.thanksTo[i]) state.thanksTo[i] = [];
+    const picked = state.thanksTo[i];
+    const writing = activeThanks === i;
+    row.closest('li').classList.toggle('writing', writing);
+    if (!writing) {
+      if (picked.length) {
+        const list = document.createElement('span');
+        list.className = 'tag-list';
+        list.textContent = `謝謝 ${picked.join('・')}`;
+        row.appendChild(list);
+      }
+      return;
+    }
+    const strip = document.createElement('div');
+    strip.className = 'tag-strip';
+    strip.setAttribute('role', 'group');
+    strip.setAttribute('aria-label', '想謝謝誰（選填）');
+    const lead = document.createElement('span');
+    lead.className = 'thanks-to-lead';
+    lead.textContent = '謝謝';
+    strip.appendChild(lead);
+    for (const who of THANKS_TO) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tag-chip';
+      b.textContent = who;
+      const sync = () => {
+        const on = state.thanksTo[i].includes(who);
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      };
+      sync();
+      keepFocus(b);
+      b.addEventListener('click', () => {
+        const list = state.thanksTo[i];
+        state.thanksTo[i] = list.includes(who) ? list.filter((t) => t !== who) : [...list, who];
+        state.dirty = true;
+        flushSave();
+        sync();
+      });
+      strip.appendChild(b);
+    }
+    row.appendChild(strip);
+  });
 }
 
 /* ---------- 共用 ---------- */
@@ -245,6 +359,16 @@ function renderToday() {
     autoGrow(ta);
   });
   state.dayTags = cleanTags(state.entries[key]?.tags, items.length);
+  const thanks = cleanThanks(state.entries[key]?.gratitude);
+  setThanksCount(thanks.length);
+  thanksAreas.forEach((ta, i) => {
+    ta.value = thanks[i];
+    autoGrow(ta);
+  });
+  state.thanksTo = cleanThanksTo(state.entries[key]?.gratitudeTo, thanks.length);
+  activeThanks = null;
+  renderThanksTo();
+  updateAddThanks();
   $('prompt-answer').value = state.entries[key]?.reflection?.a || '';
   autoGrow($('prompt-answer'));
   updateAddWin();
@@ -296,8 +420,16 @@ function flushSave() {
   const items = cleanItems(textareas.map((ta) => ta.value));
   const answer = $('prompt-answer').value;
   const reflection = answer.trim() ? { q: chakraForDate(key).prompt, a: answer } : null;
-  if (items.some((t) => t.trim()) || reflection) {
-    state.entries[key] = { items, ...(reflection ? { reflection } : {}), tags: cleanTags(state.dayTags, items.length), updatedAt: new Date().toISOString() };
+  const gratitude = cleanThanks(thanksAreas.map((ta) => ta.value));
+  const hasThanks = gratitude.some((t) => t.trim());
+  if (items.some((t) => t.trim()) || reflection || hasThanks) {
+    state.entries[key] = {
+      items,
+      ...(reflection ? { reflection } : {}),
+      ...(hasThanks ? { gratitude, gratitudeTo: cleanThanksTo(state.thanksTo, gratitude.length) } : {}),
+      tags: cleanTags(state.dayTags, items.length),
+      updatedAt: new Date().toISOString(),
+    };
     // 文字裡新的 #標籤 自動加入標籤清單
     const fresh = items.flatMap(extractHashtags).filter((t) => !state.tagList.includes(t));
     if (fresh.length) {
@@ -471,6 +603,9 @@ function renderStats() {
   $('stat-items').textContent = s.totalItems;
   $('stat-days').textContent = s.totalDays;
   $('stat-longest').textContent = s.longest > 0 ? `最長連續記錄：${s.longest} 天` : '寫下第一件成功小事，開始累積吧。';
+  const t = computeThanksStats(state.entries);
+  $('stat-thanks').hidden = t.total === 0;
+  $('stat-thanks').textContent = `♡ 累積感謝 ${t.total} 次${t.top ? `・最常感謝的是${t.top.who}（${t.top.count} 次）` : ''}`;
   renderTagReport();
 }
 
@@ -575,6 +710,7 @@ function renderCalendar() {
       btn.classList.add('recorded');
       btn.style.setProperty('--dot', chakra.color);
     }
+    if (filledThanks(state.entries[key]).length) btn.classList.add('thanked');
     if (key === today) btn.classList.add('today');
     if (key === state.selected) btn.classList.add('selected');
     if (key > today) btn.disabled = true;
@@ -646,6 +782,32 @@ function renderDayDetail() {
     p.className = 'small';
     p.textContent = '這一天還沒有紀錄。想補寫的話，隨時都可以。';
     el.appendChild(p);
+  }
+  const entryNow = state.entries[key];
+  const thanks = filledThanks(entryNow);
+  if (thanks.length) {
+    const box = document.createElement('div');
+    box.className = 'detail-thanks';
+    const head = document.createElement('p');
+    head.className = 'label-caps';
+    head.textContent = 'Thank You';
+    box.appendChild(head);
+    const ul = document.createElement('ul');
+    entryNow.gratitude.forEach((t, i) => {
+      if (typeof t !== 'string' || !t.trim()) return;
+      const li = document.createElement('li');
+      li.textContent = t;
+      const who = cleanThanksTo(entryNow.gratitudeTo, entryNow.gratitude.length)[i];
+      if (who.length) {
+        const tag = document.createElement('span');
+        tag.className = 'detail-tags';
+        tag.textContent = `謝謝${who.join('・')}`;
+        li.appendChild(tag);
+      }
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    el.appendChild(box);
   }
   const reflection = cleanReflection(state.entries[key]?.reflection);
   if (reflection) {
@@ -756,7 +918,7 @@ function updateBackupNudge() {
 /* ---------- 分享今天 ---------- */
 
 function updateShareButton() {
-  $('share-day').hidden = !textareas.some((ta) => ta.value.trim());
+  $('share-day').hidden = ![...textareas, ...thanksAreas].some((ta) => ta.value.trim());
 }
 
 let shareBlob = null;
@@ -790,6 +952,7 @@ async function shareToday() {
       color: chakra.color,
       colorName: chakra.colorName,
       name: displayName(),
+      thanks: thanksAreas.map((ta) => ta.value),
     });
     if ($('share-sheet').hidden) return; // 製作途中按了關閉
     shareBlob = await canvasToBlob(canvas);
@@ -934,6 +1097,20 @@ function bind() {
     scheduleSave();
   });
   $('prompt-answer').addEventListener('blur', flushSave);
+  $('add-thanks').addEventListener('click', () => {
+    const ta = addThanksRow();
+    state.thanksTo.push([]);
+    activeThanks = thanksAreas.length - 1;
+    updateAddThanks();
+    renderThanksTo();
+    ta.focus();
+  });
+  // 點在感恩以外的地方：收起「謝謝誰」
+  document.addEventListener('click', (e) => {
+    if (activeThanks === null || !e.target.isConnected || e.target.closest('.thanks-list li, #add-thanks')) return;
+    activeThanks = null;
+    renderThanksTo();
+  });
   $('add-win').addEventListener('click', () => {
     const ta = addRow();
     state.dayTags.push([]);

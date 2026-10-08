@@ -91,6 +91,13 @@
           <li><span class="win-num" aria-hidden="true">03</span><div class="win-body"><label for="item-2" class="visually-hidden">第三件</label><textarea id="item-2" rows="1" maxlength="2000" placeholder="對自己說一聲謝謝"></textarea><div class="win-tags" id="tags-2" data-i="2"></div></div></li>
         </ol>
         <button type="button" class="text-btn add-win" id="add-win" hidden>＋ 再寫一件</button>
+
+        <section class="thanks" aria-labelledby="thanks-title">
+          <p class="label-caps">Thank You</p>
+          <h2 class="section-title" id="thanks-title">感恩日記</h2>
+          <ol class="thanks-list" id="thanks-list"></ol>
+          <button type="button" class="text-btn add-win" id="add-thanks" hidden>＋ 再寫一件</button>
+        </section>
         <p class="save-status" id="save-status" role="status" aria-live="polite"></p>
         <button type="button" class="text-btn share-day" id="share-day" hidden>分享今天的小成功 →</button>
       </form>
@@ -197,6 +204,7 @@
         <div class="stat"><span class="stat-num" id="stat-days">0</span><span class="stat-label">已記錄天數</span></div>
       </div>
       <p class="stats-extra" id="stat-longest"></p>
+      <p class="stats-extra stats-thanks" id="stat-thanks" hidden></p>
 
       <section class="tag-report" aria-labelledby="tag-report-title">
         <p class="label-caps">Categories</p>

@@ -99,9 +99,53 @@ export function cleanReflection(r) {
   return { q: typeof r.q === 'string' ? r.q.slice(0, 200) : '', a: r.a.slice(0, 2000) };
 }
 
-/** 寫了任一件成功，或回答了引導問題，都算有紀錄 */
+/* ---------- 感恩日記 ---------- */
+
+export const MAX_THANKS = 5;
+/** 感謝的對象（選填） */
+export const THANKS_TO = ['家人', '朋友', '伴侶', '同事', '陌生人', '自己', '大自然', '毛小孩'];
+
+/** 至少一格；第二件之後的空白格會被移除，最多五件 */
+export function cleanThanks(list) {
+  const out = (Array.isArray(list) ? list.slice(0, MAX_THANKS) : []).map((v) => (typeof v === 'string' ? v.slice(0, 2000) : ''));
+  while (out.length > 1 && !out[out.length - 1].trim()) out.pop();
+  if (!out.length) out.push('');
+  return out;
+}
+
+export function cleanThanksTo(to, count = 1) {
+  const out = [];
+  for (let i = 0; i < Math.min(Math.max(count, 1), MAX_THANKS); i++) {
+    const list = Array.isArray(to) && Array.isArray(to[i]) ? to[i] : [];
+    out.push([...new Set(list.filter((t) => THANKS_TO.includes(t)))]);
+  }
+  return out;
+}
+
+export function filledThanks(entry) {
+  if (!entry || !Array.isArray(entry.gratitude)) return [];
+  return entry.gratitude.filter((t) => typeof t === 'string' && t.trim() !== '');
+}
+
+/** 寫了任一件成功、感恩，或回答了引導問題，都算有紀錄 */
 export function hasRecord(entry) {
-  return filledItems(entry).length > 0 || Boolean(cleanReflection(entry?.reflection));
+  return filledItems(entry).length > 0 || filledThanks(entry).length > 0 || Boolean(cleanReflection(entry?.reflection));
+}
+
+/** 感恩統計：累積件數與最常感謝的對象 */
+export function computeThanksStats(entries) {
+  let total = 0;
+  const to = {};
+  for (const [key, entry] of Object.entries(entries)) {
+    if (!isValidKey(key) || !entry || !Array.isArray(entry.gratitude)) continue;
+    entry.gratitude.forEach((t, i) => {
+      if (typeof t !== 'string' || !t.trim()) return;
+      total++;
+      for (const who of cleanThanksTo(entry.gratitudeTo, entry.gratitude.length)[i] || []) to[who] = (to[who] || 0) + 1;
+    });
+  }
+  const top = Object.entries(to).sort((a, b) => b[1] - a[1] || THANKS_TO.indexOf(a[0]) - THANKS_TO.indexOf(b[0]))[0] || null;
+  return { total, top: top ? { who: top[0], count: top[1] } : null };
 }
 
 /* ---------- 標籤 ---------- */
@@ -308,10 +352,13 @@ export function parseBackup(text) {
     if (!isValidKey(key) || !entry || typeof entry !== 'object') continue;
     const items = cleanItems(entry.items).map((t) => t.slice(0, 2000));
     const reflection = cleanReflection(entry.reflection);
-    if (!items.some((t) => t.trim()) && !reflection) continue;
+    const gratitude = cleanThanks(entry.gratitude);
+    const hasThanks = gratitude.some((t) => t.trim());
+    if (!items.some((t) => t.trim()) && !reflection && !hasThanks) continue;
     entries[key] = {
       items,
       ...(reflection ? { reflection } : {}),
+      ...(hasThanks ? { gratitude, gratitudeTo: cleanThanksTo(entry.gratitudeTo, gratitude.length) } : {}),
       tags: cleanTags(entry.tags, items.length),
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
     };
@@ -357,6 +404,12 @@ export function buildTextExport(entries, boards = []) {
       const extra = (entries[key].tags?.[i] || []).filter((tag) => !extractHashtags(t).includes(cleanTagName(tag)));
       lines.push(`  ${++n}. ${first}${extra.length ? `  ${extra.map((tag) => `#${tag}`).join(' ')}` : ''}`);
       for (const r of rest) lines.push(`     ${r}`);
+    });
+    const thanks = entries[key].gratitude || [];
+    thanks.forEach((t, i) => {
+      if (typeof t !== 'string' || !t.trim()) return;
+      const who = cleanThanksTo(entries[key].gratitudeTo, thanks.length)[i];
+      lines.push(`  ♡ ${t.trim().replace(/\n/g, ' ')}${who.length ? `（謝謝${who.join('、')}）` : ''}`);
     });
     const reflection = cleanReflection(entries[key].reflection);
     if (reflection) {
