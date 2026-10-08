@@ -1,7 +1,7 @@
 // 成功日記 Service Worker：預先快取 App 外殼，離線也能開啟。
 // 更新網站檔案後，請把 VERSION 加一，讓使用者取得新版。
 
-const VERSION = 'v17';
+const VERSION = 'v21';
 const CACHE = `success-journal-${VERSION}`;
 
 const ASSETS = [
@@ -76,7 +76,48 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 其他靜態檔：先用快取，同時在背景更新
+  // 程式與樣式（js、css、manifest）：先試網路，確保和最新的頁面同一版；
+  // 網路太慢（3 秒）或離線時才用快取。避免「新頁面配舊程式」造成畫面缺東西。
+  const isCode = /\.(js|css|webmanifest|html)$/.test(url.pathname);
+  if (isCode) {
+    event.respondWith(
+      new Promise((resolve) => {
+        let settled = false;
+        const fromCache = () =>
+          caches.match(request, { ignoreSearch: true }).then((cached) => {
+            if (!settled && cached) {
+              settled = true;
+              resolve(cached);
+            }
+            return cached;
+          });
+        const timer = setTimeout(fromCache, 3000);
+        fetch(request)
+          .then((res) => {
+            clearTimeout(timer);
+            if (res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE).then((c) => c.put(request, copy));
+            }
+            if (!settled) {
+              settled = true;
+              resolve(res);
+            }
+          })
+          .catch(async () => {
+            clearTimeout(timer);
+            const cached = await fromCache();
+            if (!settled) {
+              settled = true;
+              resolve(cached || Response.error());
+            }
+          });
+      }),
+    );
+    return;
+  }
+
+  // 字型與圖片：先用快取，同時在背景更新
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => {
       const network = fetch(request)

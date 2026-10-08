@@ -23,6 +23,7 @@ const TYPES = {
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR;
 
 let server;
+const overrides = new Map(); // 模擬網站更新：指定檔案改回傳新內容
 let origin;
 let browser;
 
@@ -37,6 +38,10 @@ before(async () => {
     if (rel === '.' || rel.endsWith('/')) rel = join(rel, 'index.html');
     if (rel.startsWith('..')) {
       res.writeHead(403).end();
+      return;
+    }
+    if (overrides.has(rel)) {
+      res.writeHead(200, { 'content-type': TYPES[extname(rel)] || 'application/octet-stream' }).end(overrides.get(rel));
       return;
     }
     try {
@@ -1091,5 +1096,23 @@ test('感恩抽屜：沒有感恩時顯示說明；有了之後隨機抽出以�
   assert.equal(await page.locator(`.cal-cell.selected[data-date="${date}"]`).count(), 1);
   assert.match(await page.textContent('#day-detail'), new RegExp(second));
   assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('更新網站後，下次打開就用新的程式與樣式（不會新頁面配舊程式）', async () => {
+  const { context, page } = await newPage({ date: null });
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  // 模擬上線新版：樣式檔多了一條規則
+  const css = await readFile(join(APP_DIR, 'css/style.css'), 'utf8');
+  overrides.set('css/style.css', `${css}\nbody{--update-marker:v-next}`);
+  try {
+    await page.reload();
+    const marker = await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--update-marker').trim());
+    assert.equal(marker, 'v-next', '有網路時應該拿到最新的樣式，而不是舊快取');
+  } finally {
+    overrides.clear();
+  }
   await context.close();
 });
