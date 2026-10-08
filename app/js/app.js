@@ -842,7 +842,10 @@ function renderDayDetail() {
     entryNow.gratitude.forEach((t, i) => {
       if (typeof t !== 'string' || !t.trim()) return;
       const li = document.createElement('li');
-      li.textContent = t;
+      const text = document.createElement('span');
+      text.className = 'detail-thanks-text';
+      text.textContent = t;
+      li.appendChild(text);
       const who = cleanThanksTo(entryNow.gratitudeTo, entryNow.gratitude.length)[i];
       if (who.length) {
         const tag = document.createElement('span');

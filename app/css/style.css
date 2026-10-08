@@ -839,6 +839,8 @@ textarea:focus {
 
 .detail-list li::before {
   content: '0' counter(win);
+  flex: none;
+  width: 28px;
   font-family: var(--latin);
   color: var(--accent);
   font-size: 18px;
@@ -1696,7 +1698,7 @@ textarea:focus {
 .detail-tags {
   display: block;
   flex-basis: 100%;
-  padding-left: 30px;
+  padding-left: 40px; /* 編號欄 28px ＋ 間距 12px，與文字對齊 */
   font-size: 12.5px;
   color: var(--accent);
   margin-top: 2px;
@@ -2418,8 +2420,9 @@ label.set-row {
 /* ---------- 感恩日記 ---------- */
 
 .thanks {
-  margin-top: 30px;
-  padding: 16px 16px 6px;
+  /* 卡片往左右延伸到頁邊留白，讓裡面的 ♡ 和文字跟上面的 01 與文字對齊 */
+  margin: 30px -16px 0 -18px;
+  padding: 16px 16px 6px 16px;
   background: var(--paper);
   border-left: 2px solid color-mix(in srgb, var(--day) 75%, transparent);
 }
@@ -2445,7 +2448,7 @@ label.set-row {
 .thanks-list li {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
   padding: 8px 0 6px;
   border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
 }
@@ -2456,8 +2459,8 @@ label.set-row {
 
 .thanks-num {
   flex: none;
-  width: 22px;
-  font-size: 18px;
+  width: 30px; /* 與成功小事的 01 同寬 */
+  font-size: 20px;
   line-height: 1.95;
   color: var(--day);
 }
@@ -2504,14 +2507,19 @@ label.set-row {
 }
 
 .detail-thanks li {
-  padding: 4px 0 4px 20px;
-  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  padding: 6px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .detail-thanks li::before {
   content: '♡';
-  position: absolute;
-  left: 0;
+  flex: none;
+  width: 28px;
+  font-size: 18px;
   color: var(--accent);
 }
 
@@ -2604,6 +2612,7 @@ label.set-row {
   display: none;
 }
 
-.detail-thanks .detail-tags {
-  padding-left: 0;
+.detail-thanks li > .detail-thanks-text {
+  flex: 1;
+  min-width: 0;
 }
