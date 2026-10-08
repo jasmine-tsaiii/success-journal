@@ -859,22 +859,31 @@ function renderDayDetail() {
   if (reflection) {
     const box = document.createElement('div');
     box.className = 'detail-reflection';
+    const label = document.createElement('p');
+    label.className = 'label-caps';
+    label.textContent = 'Prompt';
     const q = document.createElement('p');
-    q.className = 'small';
+    q.className = 'detail-q';
     q.textContent = reflection.q;
     const a = document.createElement('p');
+    a.className = 'detail-a';
     a.textContent = reflection.a;
-    box.append(q, a);
+    box.append(label, q, a);
     el.appendChild(box);
   }
-  const aff = document.createElement('p');
+  const aff = document.createElement('div');
   aff.className = 'detail-affirmation';
-  aff.textContent = `「${affirmation}」`;
+  const affLabel = document.createElement('p');
+  affLabel.className = 'label-caps';
+  affLabel.textContent = 'Affirmation';
+  const affText = document.createElement('p');
+  affText.textContent = affirmation;
+  aff.append(affLabel, affText);
   el.appendChild(aff);
 
   const edit = document.createElement('button');
   edit.type = 'button';
-  edit.className = 'btn btn-primary';
+  edit.className = 'btn detail-edit';
   edit.id = 'edit-day';
   edit.textContent = hasRecord(state.entries[key]) ? '編輯這一天' : '補寫這一天';
   edit.addEventListener('click', () => {

@@ -844,10 +844,28 @@ textarea:focus {
   font-size: 18px;
 }
 
+/* 當天內容的下半部：提問、肯定語、編輯，各自一段，用同樣的小標與細線 */
 .detail-affirmation {
-  font-size: 14px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
+}
+
+.detail-affirmation p:last-child {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.8;
+  letter-spacing: 0.05em;
   color: var(--ink-2);
-  margin-bottom: 16px;
+}
+
+.detail-edit {
+  width: auto;
+  display: block;
+  margin: 20px 0 0 auto;
+  padding: 8px 22px;
+  font-size: 14px;
+  border-width: 1px;
 }
 
 /* ---------- 設定 ---------- */
@@ -2317,14 +2335,30 @@ label.set-row {
 }
 
 .detail-reflection {
-  margin-top: 14px;
-  padding-left: 12px;
-  border-left: 2px solid var(--rule);
+  margin-top: 18px;
 }
 
 .detail-reflection p {
   margin: 0;
   white-space: pre-wrap;
+}
+
+.detail-q {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.detail-reflection .detail-a {
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--paper) 70%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--day) 70%, transparent);
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.75;
+  color: var(--ink-2);
 }
 
 /* ---------- 今日頁頂端：尚未登入 ---------- */
@@ -2379,10 +2413,7 @@ label.set-row {
   opacity: 0.7;
 }
 
-.detail-reflection p:last-child {
-  font-family: var(--sans);
-  color: var(--ink-2);
-}
+
 
 /* ---------- 感恩日記 ---------- */
 
@@ -2463,7 +2494,7 @@ label.set-row {
 }
 
 .detail-thanks {
-  margin-top: 14px;
+  margin-top: 18px;
 }
 
 .detail-thanks ul {
@@ -2571,4 +2602,8 @@ label.set-row {
 .jar-actions[hidden],
 .jar-actions [hidden] {
   display: none;
+}
+
+.detail-thanks .detail-tags {
+  padding-left: 0;
 }
