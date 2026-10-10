@@ -151,4 +151,5 @@ npm run fonts        # 修改介面文字後重新產生字型子集（需要 Py
 
 ### 發布更新
 
-更新網站檔案後，建議把 `app/sw.js` 中的 `VERSION`（例如 `v1` → `v2`）加一，讓已安裝的使用者更快取得新版。使用者的日記資料不受影響。
+更新網站檔案後，請把版本號加一，三個地方要一致（`npm test` 會檢查）：`app/sw.js` 的 `VERSION`、`app/js/version.js` 的 `APP_VERSION`、`app/index.html` 的 `PAGE_VERSION`。
+頁面每次都從網路取得最新版；若發現程式還是舊版（舊的離線快取），會自動清掉快取並重新載入一次。使用者的日記資料不受影響。

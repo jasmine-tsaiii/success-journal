@@ -277,3 +277,13 @@ test('感恩抽屜：收集小紙條、相對時間、隨機抽且不重複上�
   for (let i = 0; i < 10; i++) assert.equal(pickThanks(many, '2026-10-08', many[0]).text, 'b');
   assert.equal(pickThanks([], '2026-10-08'), null);
 });
+
+test('版本號：sw.js、js/version.js、index.html 的版本檢查一致', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const root = new URL('../app/', import.meta.url);
+  const sw = (await readFile(new URL('sw.js', root), 'utf8')).match(/const VERSION = '([^']+)'/)[1];
+  const js = (await readFile(new URL('js/version.js', root), 'utf8')).match(/APP_VERSION = '([^']+)'/)[1];
+  const html = (await readFile(new URL('index.html', root), 'utf8')).match(/PAGE_VERSION = '([^']+)'/)[1];
+  assert.equal(js, sw);
+  assert.equal(html, sw);
+});

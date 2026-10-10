@@ -41,7 +41,9 @@ before(async () => {
       return;
     }
     if (overrides.has(rel)) {
-      res.writeHead(200, { 'content-type': TYPES[extname(rel)] || 'application/octet-stream' }).end(overrides.get(rel));
+      const o = overrides.get(rel);
+      if (o && o.once) overrides.delete(rel);
+      res.writeHead(200, { 'content-type': TYPES[extname(rel)] || 'application/octet-stream' }).end(o && o.body !== undefined ? o.body : o);
       return;
     }
     try {
@@ -1114,5 +1116,21 @@ test('更新網站後，下次打開就用新的程式與樣式（不會新頁�
   } finally {
     overrides.clear();
   }
+  await context.close();
+});
+
+test('拿到舊版程式時（新頁面配舊程式），會自動清掉舊快取並重新載入一次', async () => {
+  // 第一次載入時，故意給舊版的 version.js（模擬舊快取）
+  overrides.set('js/version.js', { body: "export const APP_VERSION = 'v-old';", once: true });
+  const { context, page, errors } = await newPage({ date: null });
+  try {
+    await page.waitForFunction(() => window.__SJ_APP && window.__SJ_APP !== 'v-old', null, { timeout: 15000 });
+    const expected = (await readFile(join(APP_DIR, 'js/version.js'), 'utf8')).match(/'([^']+)'/)[1];
+    assert.equal(await page.evaluate(() => window.__SJ_APP), expected);
+    assert.equal(await page.locator('#thanks-list li').count(), 1, '重新載入後畫面完整');
+  } finally {
+    overrides.clear();
+  }
+  assert.deepEqual(errors, []);
   await context.close();
 });
