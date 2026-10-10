@@ -33,6 +33,7 @@ import {
   cleanTags,
   cleanReflection,
   computeTagStats,
+  itemsByTag,
   extractHashtags,
   itemTags,
   monthlyTagTable,
@@ -64,6 +65,8 @@ const state = {
   dayTags: cleanTags(),
   thanksTo: [[]],
   period: 'month',
+  tagOpen: null, // 成功類型中展開明細的標籤
+  tagShowAll: false,
 };
 
 const storageOk = isStorageAvailable();
@@ -650,13 +653,63 @@ function bindJar() {
     note.classList.add('drawn');
   });
   $('jar-open').addEventListener('click', () => {
-    if (!jarNote) return;
-    const [y, m] = jarNote.date.split('-').map(Number);
-    state.month = { y, m };
-    state.selected = jarNote.date;
-    renderCalendar();
-    $('day-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (jarNote) openDay(jarNote.date);
   });
+}
+
+const TAG_ITEMS_LIMIT = 20;
+const WEEKDAY_SHORT = ['一', '二', '三', '四', '五', '六', '日'];
+
+/** 展開某個標籤：列出這段期間裡這類的成功，點一下跳到那一天 */
+function tagItemsPanel(tag, range) {
+  const list = itemsByTag(state.entries, tag, range);
+  const panel = document.createElement('div');
+  panel.className = 'tag-items';
+  const ul = document.createElement('ul');
+  const shown = state.tagShowAll ? list : list.slice(0, TAG_ITEMS_LIMIT);
+  let lastDate = null;
+  for (const it of shown) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tag-item';
+    btn.dataset.date = it.date;
+    const when = document.createElement('span');
+    when.className = 'tag-item-date';
+    // 同一天的第二件起不重複顯示日期
+    when.textContent = it.date === lastDate ? '' : `${dotDate(it.date).slice(5)} 週${WEEKDAY_SHORT[weekdayIndex(it.date)]}`;
+    lastDate = it.date;
+    const text = document.createElement('span');
+    text.className = 'tag-item-text';
+    text.textContent = it.text;
+    btn.append(when, text);
+    btn.setAttribute('aria-label', `${formatDateZh(it.date)}：${it.text}，看那一天`);
+    btn.addEventListener('click', () => openDay(it.date));
+    li.appendChild(btn);
+    ul.appendChild(li);
+  }
+  panel.appendChild(ul);
+  if (list.length > shown.length) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'text-btn tag-items-more';
+    more.textContent = `再顯示 ${list.length - shown.length} 件`;
+    more.addEventListener('click', () => {
+      state.tagShowAll = true;
+      renderTagReport();
+    });
+    panel.appendChild(more);
+  }
+  return panel;
+}
+
+/** 在月曆選取某一天並捲到當日內容 */
+function openDay(date) {
+  const [y, m] = date.split('-').map(Number);
+  state.month = { y, m };
+  state.selected = date;
+  renderCalendar();
+  $('day-detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 const PERIOD_LABEL = { week: '本週', month: '本月', year: '今年', all: '全部' };
@@ -681,25 +734,37 @@ function renderTagReport() {
     const b = document.createElement('b');
     b.textContent = `#${top.tag}`;
     $('tag-hero').append(b, `：${top.count} 件，佔 ${Math.round(top.share * 100)}%`);
-    $('tag-note').textContent = `${label}共 ${stats.total} 件成功${stats.untagged ? `，其中 ${stats.untagged} 件未分類` : ''}。一件成功可以有好幾個標籤，所以比例加起來可能超過 100%。`;
+    $('tag-note').textContent = `${label}共 ${stats.total} 件成功${stats.untagged ? `，其中 ${stats.untagged} 件未分類` : ''}。一件成功可以有好幾個標籤，所以比例加起來可能超過 100%。點一下類型，就能看到是哪些成功。`;
   }
 
   const rows = [...stats.rows];
   if (stats.untagged && stats.rows.length) rows.push({ tag: UNTAGGED, count: stats.untagged, share: stats.untagged / stats.total, muted: true });
+  if (!rows.some((r) => r.tag === state.tagOpen)) state.tagOpen = null;
   const max = Math.max(1, ...rows.map((r) => r.count));
   for (const r of rows) {
-    const row = document.createElement('div');
-    row.className = `tag-bar${r.muted ? ' muted' : ''}`;
-    row.setAttribute('role', 'listitem');
+    const item = document.createElement('div');
+    item.setAttribute('role', 'listitem');
+    const row = document.createElement('button');
+    row.type = 'button';
+    const open = r.tag === state.tagOpen;
+    row.className = `tag-bar${r.muted ? ' muted' : ''}${open ? ' open' : ''}`;
+    row.dataset.tag = r.tag;
+    row.setAttribute('aria-expanded', String(open));
     const pct = Math.round(r.share * 100);
-    const tip = `${r.muted ? r.tag : `#${r.tag}`}：${r.count} 件，${pct}%`;
-    row.title = tip;
-    row.setAttribute('aria-label', tip);
-    row.innerHTML = '<span class="tag-bar-label"></span><span class="tag-bar-track"><span class="tag-bar-fill"></span></span><span class="tag-bar-value"></span>';
-    row.children[0].textContent = r.muted ? r.tag : `#${r.tag}`;
+    const name = r.muted ? r.tag : `#${r.tag}`;
+    row.setAttribute('aria-label', `${name}：${r.count} 件，${pct}%，${open ? '收起' : '列出'}這些成功`);
+    row.innerHTML = '<span class="tag-bar-label"></span><span class="tag-bar-track"><span class="tag-bar-fill"></span></span><span class="tag-bar-value"></span><span class="tag-bar-chev" aria-hidden="true">›</span>';
+    row.children[0].textContent = name;
     row.querySelector('.tag-bar-fill').style.width = `${(r.count / max) * 100}%`;
     row.children[2].textContent = `${r.count}・${pct}%`;
-    bars.appendChild(row);
+    row.addEventListener('click', () => {
+      state.tagOpen = open ? null : r.tag;
+      state.tagShowAll = false;
+      renderTagReport();
+    });
+    item.appendChild(row);
+    if (open) item.appendChild(tagItemsPanel(r.tag, periodRange(state.period, today)));
+    bars.appendChild(item);
   }
 
   // 每月表格
@@ -1239,6 +1304,7 @@ function bindTags() {
   document.querySelectorAll('input[name="period"]').forEach((r) =>
     r.addEventListener('change', () => {
       state.period = r.value;
+      state.tagShowAll = false;
       renderTagReport();
     }),
   );
