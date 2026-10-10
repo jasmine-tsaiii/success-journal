@@ -1,7 +1,7 @@
 // 成功日記 Service Worker：預先快取 App 外殼，離線也能開啟。
 // 更新網站檔案後，請把 VERSION 加一，讓使用者取得新版。
 
-const VERSION = 'v21';
+const VERSION = 'v22';
 const CACHE = `success-journal-${VERSION}`;
 
 const ASSETS = [
@@ -19,6 +19,7 @@ const ASSETS = [
   './js/stickers.js',
   './js/share.js',
   './js/config.js',
+  './js/version.js',
   './js/cloud.js',
   './js/sync.js',
   './js/sync-core.js',

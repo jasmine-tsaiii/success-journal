@@ -45,6 +45,10 @@ import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
 import { initSync } from './sync.js';
+import { APP_VERSION } from './version.js';
+
+// 告訴 index.html：這次載入的程式是哪一版（用來發現「新頁面配舊程式」）
+window.__SJ_APP = APP_VERSION;
 
 const $ = (id) => document.getElementById(id);
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
