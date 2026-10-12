@@ -517,6 +517,29 @@ test('標籤：點選、#hashtag、自訂標籤、成功類型統計與每月表
   assert.deepEqual(firstRow, ['#工作', '–', '–', '1', '1']);
   await shot(page, '21-tags-report');
 
+  // 點一下類型：列出這類的成功，新的在前；再點一下收起
+  await page.click('#tag-bars .tag-bar[data-tag="工作"]');
+  assert.equal(await page.getAttribute('#tag-bars .tag-bar[data-tag="工作"]', 'aria-expanded'), 'true');
+  assert.deepEqual(await page.locator('.tag-items .tag-item-text').allTextContents(), ['完成提案 #工作', '回完所有信件']);
+  assert.deepEqual(await page.locator('.tag-items .tag-item-date').allTextContents(), ['10.01 週四', '09.30 週三']);
+  if (SCREENSHOT_DIR) await page.locator('.tag-report').screenshot({ path: join(SCREENSHOT_DIR, '21b-tag-items.png') });
+  // 換成本週：只剩這週的
+  await page.click('.segmented.period label:has-text("本月")');
+  assert.equal(await page.locator('.tag-items .tag-item').count(), 1);
+  await page.click('.segmented.period label:has-text("全部")');
+  // 換一個類型：只展開一個
+  await page.click('#tag-bars .tag-bar[data-tag="冥想"]');
+  assert.deepEqual(await page.locator('.tag-items .tag-item-text').allTextContents(), ['十分鐘冥想']);
+  assert.equal(await page.getAttribute('#tag-bars .tag-bar[data-tag="工作"]', 'aria-expanded'), 'false');
+  await page.click('#tag-bars .tag-bar[data-tag="冥想"]');
+  assert.equal(await page.locator('.tag-items').count(), 0);
+  // 點某一件：跳到那一天
+  await page.click('#tag-bars .tag-bar[data-tag="工作"]');
+  await page.click('.tag-item[data-date="2026-09-30"]');
+  assert.match(await page.textContent('#day-detail'), /回完所有信件/);
+  assert.match(await page.textContent('#month-title'), /2026 年 9 月/);
+  await page.click('#next-month');
+
   // 當日詳情顯示標籤
   await page.click('.cal-cell[data-date="2026-10-01"]');
   assert.match(await page.textContent('#day-detail'), /#冥想 #自我照顧/);

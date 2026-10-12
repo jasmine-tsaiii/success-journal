@@ -20,6 +20,8 @@ import {
   computeTagStats,
   extractHashtags,
   itemTags,
+  itemsByTag,
+  UNTAGGED,
   monthlyTagTable,
   periodRange,
 } from '../app/js/core.js';
@@ -286,4 +288,24 @@ test('版本號：sw.js、js/version.js、index.html 的版本檢查一致', asy
   const html = (await readFile(new URL('index.html', root), 'utf8')).match(/PAGE_VERSION = '([^']+)'/)[1];
   assert.equal(js, sw);
   assert.equal(html, sw);
+});
+
+test('標籤明細：列出某個標籤的成功小事，新的在前；未分類；日期區間', () => {
+  const entries = {
+    '2026-09-29': t(['報告', '跑步', '看書'], [['工作'], ['健康'], []]),
+    '2026-09-30': t(['開會 #工作', '陪家人', '寫企劃'], [[], ['人際'], ['工作']]),
+    '2026-10-01': t(['簡報'], [['工作']]),
+  };
+  assert.deepEqual(
+    itemsByTag(entries, '工作').map((x) => [x.date, x.text]),
+    [['2026-10-01', '簡報'], ['2026-09-30', '開會 #工作'], ['2026-09-30', '寫企劃'], ['2026-09-29', '報告']],
+  );
+  assert.deepEqual(itemsByTag(entries, UNTAGGED).map((x) => x.text), ['看書']);
+  assert.deepEqual(itemsByTag(entries, '工作', periodRange('month', '2026-10-01')).map((x) => x.text), ['簡報']);
+  assert.deepEqual(itemsByTag(entries, '人際')[0].tags, ['人際']);
+  assert.deepEqual(itemsByTag(entries, '不存在'), []);
+  // 件數和統計一致
+  const all = computeTagStats(entries);
+  for (const r of all.rows) assert.equal(itemsByTag(entries, r.tag).length, r.count);
+  assert.equal(itemsByTag(entries, UNTAGGED).length, all.untagged);
 });

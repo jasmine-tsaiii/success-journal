@@ -248,6 +248,24 @@ export function computeTagStats(entries, { from = null, to = null } = {}) {
   return { total, untagged, rows };
 }
 
+/**
+ * 某個標籤的成功小事（日期區間同 computeTagStats），新的在前。
+ * tag 為 UNTAGGED 時列出沒有任何標籤的。回傳 [{ date, text, tags }]
+ */
+export function itemsByTag(entries, tag, { from = null, to = null } = {}) {
+  const out = [];
+  for (const [key, entry] of Object.entries(entries)) {
+    if (!isValidKey(key) || (from && key < from) || (to && key > to)) continue;
+    const items = Array.isArray(entry?.items) ? entry.items : [];
+    items.forEach((text, i) => {
+      if (typeof text !== 'string' || !text.trim()) return;
+      const tags = itemTags(entry, i);
+      if (tag === UNTAGGED ? tags.length === 0 : tags.includes(tag)) out.push({ date: key, index: i, text: text.trim(), tags });
+    });
+  }
+  return out.sort((a, b) => (a.date === b.date ? a.index - b.index : a.date < b.date ? 1 : -1));
+}
+
 /** 統計區間：本週（週一起）、本月、今年、全部 */
 export function periodRange(period, today) {
   if (period === 'week') return { from: addDays(today, -weekdayIndex(today)), to: today };
