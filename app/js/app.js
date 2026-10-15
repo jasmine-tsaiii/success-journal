@@ -6,6 +6,7 @@ import {
   THANKS_TO,
   cleanThanks,
   cleanThanksTo,
+  cleanThanksName,
   filledThanks,
   computeThanksStats,
   collectThanks,
@@ -39,7 +40,7 @@ import {
   monthlyTagTable,
   periodRange,
 } from './core.js';
-import { isStorageAvailable, loadEntries, loadSettings, loadTagList, requestPersistence, saveEntries, saveSettings, saveTagList } from './storage.js';
+import { isStorageAvailable, loadEntries, loadSettings, loadTagList, loadThanksList, requestPersistence, saveEntries, saveSettings, saveTagList, saveThanksList } from './storage.js';
 import { initBoards } from './board-ui.js';
 import { canvasToBlob, renderDayCard, shareBackup, shareOrDownload } from './share.js';
 import { usedImageIds } from './board-core.js';
@@ -62,6 +63,7 @@ const state = {
   dirty: false,
   settings: loadSettings(),
   tagList: loadTagList(DEFAULT_TAGS),
+  thanksList: loadThanksList(THANKS_TO),
   dayTags: cleanTags(),
   thanksTo: [[]],
   period: 'month',
@@ -222,7 +224,7 @@ function renderThanksTo() {
     lead.className = 'thanks-to-lead';
     lead.textContent = '謝謝';
     strip.appendChild(lead);
-    for (const who of THANKS_TO) {
+    for (const who of [...new Set([...picked, ...state.thanksList])]) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'tag-chip';
@@ -243,6 +245,29 @@ function renderThanksTo() {
       });
       strip.appendChild(b);
     }
+    strip.appendChild(
+      addChip(strip, {
+        placeholder: '例如：媽媽',
+        label: '新增想謝謝的人',
+        onCommit(value) {
+          const who = cleanThanksName(value);
+          if (who) {
+            if (!state.thanksList.includes(who)) {
+              state.thanksList = [...state.thanksList, who];
+              saveThanksList(state.thanksList);
+              renderThanksManage();
+            }
+            if (!state.thanksTo[i].includes(who)) {
+              state.thanksTo[i] = [...state.thanksTo[i], who];
+              state.dirty = true;
+              flushSave();
+            }
+          }
+          ta.focus({ preventScroll: true });
+          renderThanksTo();
+        },
+      }),
+    );
     row.appendChild(strip);
   });
 }
@@ -488,8 +513,8 @@ function tagChip(i, tag) {
   return b;
 }
 
-/** 「＋ 自訂」：點了變成小輸入框，按 Enter 或離開時加入 */
-function customChip(i, strip) {
+/** 「＋ 自訂」：點了變成小輸入框，按 Enter 或離開時呼叫 onCommit(輸入的文字) */
+function addChip(strip, { placeholder, label, onCommit }) {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'tag-chip tag-custom';
@@ -499,23 +524,14 @@ function customChip(i, strip) {
     input.type = 'text';
     input.className = 'tag-custom-input';
     input.maxLength = 12;
-    input.placeholder = '新標籤';
-    input.setAttribute('aria-label', '自訂標籤');
+    input.placeholder = placeholder;
+    input.setAttribute('aria-label', label);
     input.enterKeyHint = 'done';
     let done = false;
     const commit = () => {
       if (done) return;
       done = true;
-      const name = cleanTagName(input.value);
-      if (name) {
-        if (!state.tagList.includes(name)) {
-          state.tagList = [...state.tagList, name];
-          saveTagList(state.tagList);
-        }
-        if (!state.dayTags[i].includes(name)) toggleTag(i, name);
-      }
-      textareas[i].focus({ preventScroll: true });
-      renderTagRows();
+      onCommit(input.value);
     };
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -533,6 +549,25 @@ function customChip(i, strip) {
     strip.scrollLeft = strip.scrollWidth;
   });
   return b;
+}
+
+function customChip(i, strip) {
+  return addChip(strip, {
+    placeholder: '新標籤',
+    label: '自訂標籤',
+    onCommit(value) {
+      const name = cleanTagName(value);
+      if (name) {
+        if (!state.tagList.includes(name)) {
+          state.tagList = [...state.tagList, name];
+          saveTagList(state.tagList);
+        }
+        if (!state.dayTags[i].includes(name)) toggleTag(i, name);
+      }
+      textareas[i].focus({ preventScroll: true });
+      renderTagRows();
+    },
+  });
 }
 
 function renderTagRows() {
@@ -568,32 +603,56 @@ function renderTagRows() {
 
 /* ---------- 標籤管理（設定頁） ---------- */
 
-function renderTagManage() {
-  const box = $('tag-manage');
+/** 設定頁的清單：每個項目旁有 × 可以移除 */
+function renderChipManage(box, list, { show, removeLabel, onRemove, empty }) {
   box.textContent = '';
-  for (const tag of state.tagList) {
+  for (const item of list) {
     const chip = document.createElement('span');
     chip.className = 'tag-chip';
-    chip.textContent = `#${tag}`;
+    chip.textContent = show(item);
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'tag-remove';
-    x.setAttribute('aria-label', `移除標籤 ${tag}`);
+    x.setAttribute('aria-label', `${removeLabel} ${item}`);
     x.textContent = '×';
-    x.addEventListener('click', () => {
-      state.tagList = state.tagList.filter((t) => t !== tag);
-      saveTagList(state.tagList);
-      renderTagManage();
-    });
+    x.addEventListener('click', () => onRemove(item));
     chip.appendChild(x);
     box.appendChild(chip);
   }
-  if (!state.tagList.length) {
+  if (!list.length) {
     const p = document.createElement('span');
     p.className = 'small';
-    p.textContent = '目前沒有標籤。';
+    p.textContent = empty;
     box.appendChild(p);
   }
+}
+
+function renderTagManage() {
+  renderChipManage($('tag-manage'), state.tagList, {
+    show: (t) => `#${t}`,
+    removeLabel: '移除標籤',
+    empty: '目前沒有標籤。',
+    onRemove(tag) {
+      state.tagList = state.tagList.filter((t) => t !== tag);
+      saveTagList(state.tagList);
+      renderTagManage();
+    },
+  });
+}
+
+/** 感謝的對象：移除只影響之後的選項，以前記下的不會被改掉 */
+function renderThanksManage() {
+  renderChipManage($('thanks-manage'), state.thanksList, {
+    show: (t) => t,
+    removeLabel: '移除對象',
+    empty: '目前沒有對象，寫感恩時可以點「＋ 自訂」新增。',
+    onRemove(who) {
+      state.thanksList = state.thanksList.filter((t) => t !== who);
+      saveThanksList(state.thanksList);
+      renderThanksManage();
+      renderThanksTo();
+    },
+  });
 }
 
 function goToDate(key) {
@@ -998,7 +1057,7 @@ async function exportJson() {
       /* 略過讀不到的照片 */
     }
   }
-  const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images, tags: state.tagList });
+  const backup = buildBackup(state.entries, new Date(), { boards: allBoards, images, tags: state.tagList, thanksList: state.thanksList });
   const result = await shareBackup(JSON.stringify(backup), stamp());
   if (result === 'cancelled') return;
   state.settings = { ...state.settings, lastBackupAt: new Date().toISOString(), backupSnoozeUntil: null };
@@ -1180,6 +1239,11 @@ async function importJson(file) {
     saveTagList(state.tagList);
     renderTagManage();
   }
+  if (parsed.thanksList?.length) {
+    state.thanksList = [...new Set([...state.thanksList, ...parsed.thanksList])];
+    saveThanksList(state.thanksList);
+    renderThanksManage();
+  }
   if (persist()) {
     try {
       boards.setBoards(mergeBoards(boards.getBoards(), parsed.boards));
@@ -1323,6 +1387,22 @@ function bindTags() {
     toast(`已新增標籤「${name}」`);
   });
   renderTagManage();
+  $('thanks-add-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const who = cleanThanksName($('thanks-add-input').value);
+    if (!who) return;
+    if (state.thanksList.includes(who)) {
+      toast(`已經有「${who}」了`);
+      return;
+    }
+    state.thanksList = [...state.thanksList, who];
+    saveThanksList(state.thanksList);
+    $('thanks-add-input').value = '';
+    renderThanksManage();
+    renderThanksTo();
+    toast(`已新增「${who}」`);
+  });
+  renderThanksManage();
 }
 
 function bindSettings() {
@@ -1364,6 +1444,13 @@ const sync = initSync({
   setBoards(list) {
     boards.setBoards(list);
     if (!$('view-dreams').hidden) boards.show();
+  },
+  getThanksList: () => state.thanksList,
+  setThanksList(list) {
+    state.thanksList = list;
+    saveThanksList(list);
+    renderThanksManage();
+    renderThanksTo();
   },
   getTags: () => state.tagList,
   setTags(tags) {

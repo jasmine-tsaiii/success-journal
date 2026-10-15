@@ -41,7 +41,7 @@
     // 版本檢查：頁面一定是最新的，但舊版的離線快取可能給了舊程式（畫面會少東西）。
     // 發現程式版本和頁面不同時，清掉舊快取、更新 Service Worker，重新載入一次。
     (function () {
-      var PAGE_VERSION = 'v23';
+      var PAGE_VERSION = 'v24';
       window.addEventListener('load', function () {
         if (window.__SJ_APP === PAGE_VERSION) return;
         try {
@@ -345,6 +345,14 @@
           <div class="chip-row tag-manage" id="tag-manage"></div>
           <form class="tag-add" id="tag-add-form" autocomplete="off">
             <input type="text" id="tag-add-input" maxlength="12" placeholder="新增標籤，例如：理財" aria-label="新增標籤">
+            <button type="submit">＋ 新增</button>
+          </form>
+        </div>
+        <div class="set-block">
+          <span class="set-title">感謝的對象</span>
+          <div class="chip-row tag-manage" id="thanks-manage"></div>
+          <form class="tag-add" id="thanks-add-form" autocomplete="off">
+            <input type="text" id="thanks-add-input" maxlength="12" placeholder="新增對象，例如：媽媽、老師" aria-label="新增感謝的對象">
             <button type="submit">＋ 新增</button>
           </form>
         </div>

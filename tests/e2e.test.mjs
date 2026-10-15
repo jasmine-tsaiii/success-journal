@@ -790,6 +790,8 @@ test('會員：Google 登入後同步日記、標籤、願景板與照片；換�
   assert.equal(await a.page.isVisible('#cloud-out'), true);
   await a.page.fill('#tag-add-input', '理財');
   await a.page.click('#tag-add-form button[type=submit]');
+  await a.page.fill('#thanks-add-input', '室友');
+  await a.page.click('#thanks-add-form button[type=submit]');
   await a.page.evaluate(async (b64) => {
     const { putImage } = await import('./js/images.js');
     const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob();
@@ -825,6 +827,7 @@ test('會員：Google 登入後同步日記、標籤、願景板與照片；換�
   const bTags = await b.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.tags.v1')));
   assert.ok(bTags.includes('理財'), '自訂標籤也同步了');
   assert.ok(bTags.includes('工作'));
+  assert.ok((await b.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.thanks-to.v1')))).includes('室友'), '感謝的對象也同步了');
   const bBoards = await boardsInStorage(b.page);
   assert.equal(bBoards[0].id, 'b-test');
   const hasPhoto = await b.page.evaluate(async () => {
@@ -1154,6 +1157,52 @@ test('拿到舊版程式時（新頁面配舊程式），會自動清掉舊快�
   } finally {
     overrides.clear();
   }
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('感謝的對象：寫感恩時可以自訂新增；設定頁可以新增、刪除，刪除不影響以前的紀錄', async () => {
+  const { context, page, errors } = await newPage();
+  await page.fill('#thanks-0', '林老師多教了我十分鐘');
+  await page.click('#thanks-to-0 .tag-custom');
+  await page.fill('#thanks-to-0 .tag-custom-input', ' 林老師 ');
+  await page.press('#thanks-to-0 .tag-custom-input', 'Enter');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'thanks-0', '新增後回到輸入框');
+  assert.equal(await page.getAttribute('#thanks-to-0 .tag-chip:has-text("林老師")', 'aria-pressed'), 'true', '新增的對象直接選好');
+  if (SCREENSHOT_DIR) await page.locator('.thanks').screenshot({ path: join(SCREENSHOT_DIR, '97-thanks-custom.png') });
+  let saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(saved.gratitudeTo, [['林老師']]);
+
+  // 設定頁：清單裡有新對象；刪掉預設的「同事」、新增「室友」
+  await page.click('#tab-data');
+  const manage = await page.locator('#thanks-manage .tag-chip').allTextContents();
+  assert.ok(manage.some((t) => t.startsWith('林老師')));
+  await page.click('#thanks-manage [aria-label="移除對象 同事"]');
+  await page.fill('#thanks-add-input', '室友');
+  await page.press('#thanks-add-input', 'Enter');
+  if (SCREENSHOT_DIR) await page.locator('#thanks-manage').locator('..').screenshot({ path: join(SCREENSHOT_DIR, '98-thanks-manage.png') });
+  const list = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.thanks-to.v1')));
+  assert.ok(!list.includes('同事') && list.includes('室友') && list.includes('林老師'));
+
+  // 今日頁的選項跟著變
+  await page.click('#tab-today');
+  await page.click('#thanks-0');
+  const chips = await page.locator('#thanks-to-0 .tag-chip:not(.tag-custom)').allTextContents();
+  assert.ok(chips.includes('室友') && !chips.includes('同事'));
+
+  // 刪掉已經用過的對象：以前的紀錄保留
+  await page.click('#tab-data');
+  await page.click('#thanks-manage [aria-label="移除對象 林老師"]');
+  saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(saved.gratitudeTo, [['林老師']]);
+  await page.click('#tab-today');
+  await page.click('.prompt .label-caps');
+  assert.equal(await page.textContent('#thanks-to-0 .tag-list'), '謝謝 林老師');
+
+  // 重新整理後仍保留
+  await page.reload();
+  await page.click('#tab-data');
+  assert.ok((await page.locator('#thanks-manage').textContent()).includes('室友'));
   assert.deepEqual(errors, []);
   await context.close();
 });
