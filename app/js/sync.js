@@ -15,7 +15,7 @@ function loadMeta(userId) {
   } catch {
     /* 忽略 */
   }
-  return { userId, cursor: null, pushed: {}, photos: {}, tagsJson: null, tagsUpdatedAt: null, lastSyncAt: null };
+  return { userId, cursor: null, pushed: {}, photos: {}, tagsJson: null, thanksJson: null, tagsUpdatedAt: null, lastSyncAt: null };
 }
 
 function saveMeta(meta) {
@@ -88,13 +88,19 @@ export function initSync(app) {
     // 第一次同步時以雲端為準（之後再合併本機的標籤），避免新手機的預設標籤蓋掉雲端的自訂標籤
     const firstSync = meta.tagsJson === null;
     const localTags = app.getTags();
+    const localThanks = app.getThanksList();
     const tagsJson = JSON.stringify(localTags);
-    if (tagsJson !== meta.tagsJson) {
+    const thanksJson = JSON.stringify(localThanks);
+    // 舊版沒有記錄感謝對象：當作已同步，不讓升級本身把清單標成剛修改
+    if (meta.thanksJson == null && !firstSync) meta.thanksJson = thanksJson;
+    if (tagsJson !== meta.tagsJson || thanksJson !== meta.thanksJson) {
       meta.tagsJson = tagsJson;
+      meta.thanksJson = thanksJson;
       meta.tagsUpdatedAt = firstSync ? new Date(0).toISOString() : new Date().toISOString();
     }
 
-    const collect = () => localDocs({ entries: app.getEntries(), boards: app.getBoards(), tags: app.getTags(), tagsUpdatedAt: meta.tagsUpdatedAt });
+    const collect = () =>
+      localDocs({ entries: app.getEntries(), boards: app.getBoards(), tags: app.getTags(), thanks: app.getThanksList(), tagsUpdatedAt: meta.tagsUpdatedAt });
 
     const pullAndApply = async (since) => {
       const rows = await cloud.pullDocs(since);
@@ -111,7 +117,13 @@ export function initSync(app) {
             const merged = firstSync ? [...new Set([...next.tags, ...localTags])] : next.tags;
             app.setTags(merged);
             meta.tagsJson = JSON.stringify(merged);
-            meta.tagsUpdatedAt = merged.length === next.tags.length ? next.tagsUpdatedAt : new Date().toISOString();
+            // 雲端還沒有感謝對象（舊版寫的）：保留這台裝置的清單
+            const remoteThanks = next.thanks || app.getThanksList();
+            const mergedThanks = firstSync ? [...new Set([...remoteThanks, ...localThanks])] : remoteThanks;
+            app.setThanksList(mergedThanks);
+            meta.thanksJson = JSON.stringify(mergedThanks);
+            const same = merged.length === next.tags.length && next.thanks && mergedThanks.length === next.thanks.length;
+            meta.tagsUpdatedAt = same ? next.tagsUpdatedAt : new Date().toISOString();
           }
         } finally {
           applying = false;

@@ -236,7 +236,7 @@ test('感恩日記：預設一格、最多五件、算有紀錄、統計最常�
   assert.deepEqual(cleanThanks(undefined), ['']);
   assert.deepEqual(cleanThanks(['謝謝媽媽', '', ' ']), ['謝謝媽媽']);
   assert.equal(cleanThanks(Array(9).fill('a')).length, MAX_THANKS);
-  assert.deepEqual(cleanThanksTo([['家人', '不存在的', '家人']], 1), [['家人']]);
+  assert.deepEqual(cleanThanksTo([['家人', ' 王 老師 ', '家人', 3, '']], 1), [['家人', '王 老師']], '自訂的對象也保留');
   const e = (g, to) => ({ items: ['', '', ''], gratitude: g, gratitudeTo: to });
   assert.equal(hasRecord(e(['謝謝同事幫忙'], [['同事']])), true);
   assert.equal(hasRecord(e([''], [[]])), false);
@@ -247,7 +247,7 @@ test('感恩日記：預設一格、最多五件、算有紀錄、統計最常�
   });
   assert.deepEqual(stats, { total: 3, top: { who: '家人', count: 2 } });
   assert.deepEqual(computeThanksStats({}), { total: 0, top: null });
-  const { entries } = parseBackup(JSON.stringify({ app: 'success-journal', version: 2, entries: { '2026-10-01': e(['媽媽煮的湯', ''], [['家人', 'x'], []]) } }));
+  const { entries } = parseBackup(JSON.stringify({ app: 'success-journal', version: 2, entries: { '2026-10-01': e(['媽媽煮的湯', ''], [['家人', 5, '  '], []]) } }));
   assert.deepEqual(entries['2026-10-01'].gratitude, ['媽媽煮的湯']);
   assert.deepEqual(entries['2026-10-01'].gratitudeTo, [['家人']]);
   const txt = buildTextExport({ '2026-10-01': { items: ['早起', '', ''], gratitude: ['媽媽煮的湯'], gratitudeTo: [['家人']] } });
@@ -308,4 +308,15 @@ test('標籤明細：列出某個標籤的成功小事，新的在前；未分�
   const all = computeTagStats(entries);
   for (const r of all.rows) assert.equal(itemsByTag(entries, r.tag).length, r.count);
   assert.equal(itemsByTag(entries, UNTAGGED).length, all.untagged);
+});
+
+test('感謝對象清單：清理名稱、去重複；備份含清單', async () => {
+  const { cleanThanksName, cleanThanksList, buildBackup, parseBackup } = await import('../app/js/core.js');
+  assert.equal(cleanThanksName('  林  老師 '), '林 老師');
+  assert.equal(cleanThanksName('一二三四五六七八九十一二三'), '一二三四五六七八九十一二');
+  assert.deepEqual(cleanThanksList(['媽媽', ' 媽媽', '', 5, '室友']), ['媽媽', '室友']);
+  assert.equal(cleanThanksList('x'), null);
+  const backup = buildBackup({}, new Date('2026-10-01T00:00:00Z'), { thanksList: ['媽媽', '室友'] });
+  assert.deepEqual(parseBackup(JSON.stringify(backup)).thanksList, ['媽媽', '室友']);
+  assert.equal(parseBackup(JSON.stringify(buildBackup({}))).thanksList, null, '舊備份沒有清單');
 });

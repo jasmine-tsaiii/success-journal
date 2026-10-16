@@ -136,3 +136,13 @@ test('applyRemote：重複收到上次同步的版本時，不會救回本機剛
   assert.equal(r.local.has('entry:2026-09-30'), false);
   assert.deepEqual(planPush(r.local, r.pushed, new Date(T3)).map((x) => [x.key, x.deleted]), [['2026-09-30', true]]);
 });
+
+test('感謝對象清單和標籤放在同一份文件同步；舊版的文件沒有清單時回傳 null', () => {
+  const docs = localDocs({ tags: ['工作'], thanks: ['媽媽'], tagsUpdatedAt: T1 });
+  assert.deepEqual(docs.get('tags:list').data, { list: ['工作'], thanks: ['媽媽'] });
+  const r = applyRemote(docs, {}, [{ kind: 'tags', key: 'list', data: { list: ['工作'], thanks: ['媽媽', '室友'] }, deleted: false, updated_at: T2 }]);
+  assert.deepEqual(docsToState(r.local).thanks, ['媽媽', '室友']);
+  const old = applyRemote(docs, {}, [{ kind: 'tags', key: 'list', data: { list: ['理財'] }, deleted: false, updated_at: T2 }]);
+  assert.equal(docsToState(old.local).thanks, null);
+  assert.deepEqual(docsToState(old.local).tags, ['理財']);
+});

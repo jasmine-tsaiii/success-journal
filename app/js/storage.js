@@ -34,6 +34,7 @@ export function saveEntries(entries) {
 
 const BOARDS_KEY = 'success-journal.boards.v1';
 const TAGS_KEY = 'success-journal.tags.v1';
+const THANKS_LIST_KEY = 'success-journal.thanks-to.v1';
 const SETTINGS_KEY = 'success-journal.settings.v1';
 
 function loadJson(key, fallback) {
@@ -98,4 +99,19 @@ export async function requestPersistence() {
     /* 忽略 */
   }
   return false;
+}
+
+/** 感謝對象清單（尚未設定時使用預設） */
+export function loadThanksList(defaults) {
+  const data = loadJson(THANKS_LIST_KEY, null);
+  return Array.isArray(data) ? data.filter((t) => typeof t === 'string') : [...defaults];
+}
+
+export function saveThanksList(list) {
+  try {
+    localStorage.setItem(THANKS_LIST_KEY, JSON.stringify(list));
+    notifyChanged();
+  } catch {
+    /* 忽略 */
+  }
 }

@@ -102,8 +102,23 @@ export function cleanReflection(r) {
 /* ---------- 感恩日記 ---------- */
 
 export const MAX_THANKS = 5;
-/** 感謝的對象（選填） */
+/** 預設的感謝對象（可以在設定或今日頁自己新增、刪除） */
 export const THANKS_TO = ['家人', '朋友', '伴侶', '同事', '陌生人', '自己', '大自然', '毛小孩'];
+export const MAX_THANKS_NAME = 12;
+
+/** 清理感謝對象的名稱：去掉前後空白、合併中間空白，限制長度 */
+export function cleanThanksName(name) {
+  return String(name || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_THANKS_NAME)
+    .trim();
+}
+
+/** 清理感謝對象清單（去重複、最多 40 個） */
+export function cleanThanksList(list) {
+  return Array.isArray(list) ? [...new Set(list.filter((t) => typeof t === 'string').map(cleanThanksName).filter(Boolean))].slice(0, 40) : null;
+}
 
 /** 至少一格；第二件之後的空白格會被移除，最多五件 */
 export function cleanThanks(list) {
@@ -117,7 +132,7 @@ export function cleanThanksTo(to, count = 1) {
   const out = [];
   for (let i = 0; i < Math.min(Math.max(count, 1), MAX_THANKS); i++) {
     const list = Array.isArray(to) && Array.isArray(to[i]) ? to[i] : [];
-    out.push([...new Set(list.filter((t) => THANKS_TO.includes(t)))]);
+    out.push([...new Set(list.filter((t) => typeof t === 'string').map(cleanThanksName).filter(Boolean))].slice(0, 8));
   }
   return out;
 }
@@ -367,7 +382,7 @@ export function monthGrid(year, month /* 1-12 */) {
 /**
  * 建立備份內容。boards 為願景板版面，images 為 { id: { data: dataURL, width, height } }。
  */
-export function buildBackup(entries, now = new Date(), { boards = [], images = {}, tags = [] } = {}) {
+export function buildBackup(entries, now = new Date(), { boards = [], images = {}, tags = [], thanksList = null } = {}) {
   const sorted = {};
   for (const key of Object.keys(entries).sort()) {
     if (isValidKey(key) && hasRecord(entries[key])) sorted[key] = entries[key];
@@ -378,6 +393,7 @@ export function buildBackup(entries, now = new Date(), { boards = [], images = {
     exportedAt: now.toISOString(),
     entries: sorted,
     tags,
+    ...(thanksList ? { thanksList } : {}),
     boards,
     images,
   };
@@ -425,7 +441,8 @@ export function parseBackup(text) {
       images[id.slice(0, 64)] = { data: img.data, width: Number(img.width) || 0, height: Number(img.height) || 0 };
     }
   }
-  return { entries, count: Object.keys(entries).length, boards, images, tags };
+  const thanksList = cleanThanksList(data.thanksList);
+  return { entries, count: Object.keys(entries).length, boards, images, tags, thanksList };
 }
 
 /** 合併願景板：同 id 以備份為準，其他保留 */
