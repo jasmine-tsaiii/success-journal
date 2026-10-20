@@ -4,3 +4,7 @@
 export const SUPABASE_URL = 'https://bzjndcgbqttdihkqhpqg.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_ZUQBD2Izi_hcb8xElJrG0g_nSSPf0vr';
 export const GOOGLE_CLIENT_ID = '571596263240-sdtjlec13se738hrhcbckrk10eqsmaci.apps.googleusercontent.com';
+
+// 問題回報的信箱，與開發者的 Instagram 帳號（不含 @；空字串表示不顯示）
+export const FEEDBACK_EMAIL = 'hello@jas-soul.com';
+export const DEVELOPER_IG = 'jas.soulcareer';

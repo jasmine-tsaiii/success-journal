@@ -39,6 +39,8 @@ function saveSession(data) {
       name: meta.full_name || meta.name || '',
       // 使用者在 App 裡設定的稱呼（存在帳號上，換裝置登入也找得到）；null 表示還沒設定過
       displayName: typeof meta.sj_display_name === 'string' ? meta.sj_display_name : null,
+      // 是否已記錄過從哪個分享連結來
+      hasRef: Boolean(meta.sj_ref),
     },
   };
   localStorage.setItem(AUTH_KEY, JSON.stringify(session));
@@ -160,6 +162,20 @@ export async function saveProfile(displayName) {
   updateStoredUser(await res.json());
 }
 
+/** 記下這個帳號是從哪個分享連結來的（{ source, medium, campaign, content, at }） */
+export async function saveRef(ref) {
+  const { source = '', medium = '', campaign = '', content = '', at = '' } = ref || {};
+  const res = await expectOk(
+    await api('/auth/v1/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { sj_ref: { source, medium, campaign, content, at } } }),
+    }),
+    '儲存來源失敗',
+  );
+  updateStoredUser(await res.json());
+}
+
 /** 取得帳號上的稱呼（在別的裝置改過時會不一樣）；還沒設定過時回傳 null */
 export async function fetchProfile() {
   const res = await expectOk(await api('/auth/v1/user'), '讀取帳號資料失敗');
@@ -224,6 +240,18 @@ export async function downloadPhoto(id) {
   if (res.status === 400 || res.status === 404) return null;
   await expectOk(res, '照片下載失敗');
   return res.blob();
+}
+
+/* ---------- 管理者統計 ---------- */
+
+/** 使用狀況統計（只有管理者名單上的帳號可以呼叫） */
+export async function fetchAdminStats() {
+  const res = await api('/rest/v1/rpc/sj_admin_stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  if (res.ok) return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 403 || data.code === '42501') throw new CloudError('這個帳號沒有查看統計的權限', 403);
+  if (res.status === 404 || data.code === 'PGRST202') throw new CloudError('資料庫還沒有統計功能，請先在 Supabase 執行 supabase/admin.sql', 404);
+  throw new CloudError(data.message || '讀取統計失敗', res.status);
 }
 
 /* ---------- 刪除帳號 ---------- */

@@ -654,6 +654,7 @@ function fakeCloud() {
   const docs = new Map(); // `${uid}|${kind}|${key}` → row
   const photos = new Map(); // path → { body, type }
   const users = new Map(); // uid → email
+  const admins = new Set(); // 可以看統計的 email
   let tick = Date.parse('2026-10-01T00:00:00Z');
   const nextSyncedAt = () => new Date((tick += 1000)).toISOString().replace('Z', '+00:00');
   const cors = {
@@ -728,6 +729,10 @@ function fakeCloud() {
       }
       return json(route, 201, accepted);
     }
+    if (path === '/rest/v1/rpc/sj_admin_stats') {
+      if (!admins.has(users.get(uid))) return json(route, 403, { code: '42501', message: '沒有權限' });
+      return json(route, 200, ADMIN_STATS);
+    }
     if (path === '/rest/v1/rpc/delete_my_account') {
       for (const id of [...docs.keys()]) if (id.startsWith(`${uid}|`)) docs.delete(id);
       users.delete(uid);
@@ -760,6 +765,7 @@ function fakeCloud() {
     photos,
     users,
     meta,
+    admins,
     async attach(context) {
       await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'text/javascript' }, body: gsi }));
       await context.route(/^https:\/\/[a-z0-9]+\.supabase\.co\//, handle);
@@ -1203,6 +1209,147 @@ test('感謝的對象：寫感恩時可以自訂新增；設定頁可以新增�
   await page.reload();
   await page.click('#tab-data');
   assert.ok((await page.locator('#thanks-manage').textContent()).includes('室友'));
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+const ADMIN_STATS = {
+  generated_at: '2026-10-01T01:00:00Z',
+  users: { total: 40, active7: 18, active30: 31, new7: 5, new30: 12 },
+  writing: { entry_days: 812, wins: 2650, thanks: 640, reflections: 210, boards: 22, today_writers: 9 },
+  features: { thanks: 25, reflections: 14, boards: 17 },
+  depth: { none: 3, d1: 8, d2_6: 12, d7_29: 11, d30: 6 },
+  weekly: Array.from({ length: 12 }, (_, i) => ({ week: new Date(Date.UTC(2026, 6, 13 + i * 7)).toISOString().slice(0, 10), writers: 6 + i, new_users: i % 4, entry_days: 30 + i * 3 })),
+  daily: Array.from({ length: 30 }, (_, i) => ({ date: new Date(Date.UTC(2026, 8, 2 + i)).toISOString().slice(0, 10), writers: (i * 7) % 11, wins: i })),
+};
+
+test('使用狀況頁：沒登入時請先登入；不是管理者看不到；管理者看到整體數字與圖表', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server });
+  await page.goto(`${origin}${BASE}admin.html`);
+  await page.waitForFunction(() => /請先/.test(document.getElementById('admin-msg').textContent));
+  assert.equal(await page.isHidden('#admin-body'), true);
+
+  // 一般使用者登入：沒有權限
+  await page.goto(origin + BASE);
+  await signIn(page);
+  await page.goto(`${origin}${BASE}admin.html`);
+  await page.waitForFunction(() => /沒有/.test(document.getElementById('admin-msg').textContent));
+  assert.equal(await page.isHidden('#admin-body'), true);
+
+  // 加入管理者名單後
+  server.admins.add('amy@example.com');
+  await page.reload();
+  await page.waitForSelector('#admin-body:not([hidden])');
+  const users = await page.locator('#kpi-users .kpi-value').allTextContents();
+  assert.deepEqual(users, ['40', '18', '31', '9']);
+  assert.match(await page.textContent('#kpi-writing'), /2,650/);
+  assert.match(await page.textContent('#kpi-writing'), /平均每人 20\.3 天/);
+  assert.equal(await page.locator('#chart-daily .col').count(), 30);
+  assert.equal(await page.locator('#chart-writers .col').count(), 12);
+  assert.match(await page.textContent('#chart-depth'), /30 天以上6・15%/);
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '99-admin.png'), fullPage: true });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('感謝卡與邀請卡：先預覽、可複製連結；朋友從分享連結進來會記下來源，登入後存到帳號', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  // 感謝卡：寫了感恩才出現按鈕
+  assert.equal(await page.isHidden('#thanks-send-0'), true);
+  await page.fill('#thanks-0', '媽媽煮了我最愛的湯');
+  await page.click('#thanks-to-0 .tag-chip >> text=家人');
+  assert.equal(await page.isVisible('#thanks-send-0'), true);
+  await page.click('#thanks-send-0');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.getAttribute('#share-img', 'alt'), '感謝卡預覽');
+  assert.equal(await page.isVisible('#share-copy'), true);
+  const size = await page.evaluate(() => [document.getElementById('share-img').naturalWidth, document.getElementById('share-img').naturalHeight]);
+  assert.deepEqual(size, [1080, 1350]);
+  if (SCREENSHOT_DIR) {
+    const src = await page.getAttribute('#share-img', 'src');
+    const b64 = await page.evaluate(async (u) => {
+      const b = await (await fetch(u)).blob();
+      return new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result.split(',')[1]); f.readAsDataURL(b); });
+    }, src);
+    await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '43-thanks-card.png'), Buffer.from(b64, 'base64')));
+  }
+  await page.click('#share-copy');
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  assert.match(clip, /^想跟你說聲謝謝 ♡/);
+  assert.doesNotMatch(clip, /家人/);
+  assert.match(clip, /utm_source=success_journal&utm_medium=thanks_card&utm_campaign=friend_referral/);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-confirm')]);
+  assert.match(dl.suggestedFilename(), /^thank-you-2026-10-01\.png$/);
+  await page.waitForSelector('#share-sheet', { state: 'hidden' });
+
+  // 今天的小成功分享也附上連結
+  await page.click('#share-day');
+  await page.waitForSelector('#share-img:not([hidden])');
+  await page.click('#share-copy');
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /utm_medium=day_card/);
+  await page.click('#share-cancel');
+
+  // 邀請卡：回顧頁與設定頁都有
+  await page.click('#tab-calendar');
+  await page.click('#invite-review');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.getAttribute('#share-img', 'alt'), '邀請卡預覽');
+  if (SCREENSHOT_DIR) {
+    const src = await page.getAttribute('#share-img', 'src');
+    const b64 = await page.evaluate(async (u) => {
+      const b = await (await fetch(u)).blob();
+      return new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result.split(',')[1]); f.readAsDataURL(b); });
+    }, src);
+    await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '44-invite-card.png'), Buffer.from(b64, 'base64')));
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '45-share-sheet.png') });
+  }
+  await page.click('#share-copy');
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /拿起手機就能記錄，邀請你一起來寫[\s\S]*utm_medium=invite_card/);
+  await page.click('#share-cancel');
+  await page.click('#tab-data');
+  await page.click('#invite-settings');
+  await page.waitForSelector('#share-img:not([hidden])');
+  await page.click('#share-cancel');
+  await context.close();
+
+  // 朋友點了連結進來：記下來源、網址上的 utm 拿掉；登入後存到帳號（只存第一次）
+  const friend = await newPage({ cloud: server });
+  await friend.page.goto(`${origin}${BASE}?utm_source=success_journal&utm_medium=thanks_card&utm_campaign=friend_referral`);
+  await friend.page.waitForFunction(() => !location.search);
+  const ref = await friend.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.ref.v1')));
+  assert.equal(ref.medium, 'thanks_card');
+  await friend.page.goto(`${origin}${BASE}?utm_source=x&utm_medium=other`);
+  assert.equal((await friend.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.ref.v1')))).medium, 'thanks_card', '只記第一次');
+  await friend.page.evaluate(() => (window.__fakeEmail = 'bea@example.com'));
+  await signIn(friend.page);
+  await expectEventually(() => server.meta.get('uid-bea')?.sj_ref?.medium === 'thanks_card', '來源存到帳號上');
+  assert.equal(server.meta.get('uid-bea').sj_ref.campaign, 'friend_referral');
+  assert.deepEqual(errors, []);
+  assert.deepEqual(friend.errors, []);
+  await friend.context.close();
+});
+
+test('設定頁：問題回報信帶好版本與裝置資訊；開發者 Instagram 連結', async () => {
+  const { context, page, errors } = await newPage();
+  await page.click('#tab-data');
+  const mail = await page.getAttribute('#feedback-link', 'href');
+  assert.match(mail, /^mailto:hello@jas-soul\.com\?subject=/);
+  const body = decodeURIComponent(mail.split('body=')[1]);
+  assert.match(body, /版本：v\d+/);
+  assert.match(body, /登入：否/);
+  assert.equal(await page.isVisible('#developer-ig'), true);
+  assert.equal(await page.getAttribute('#developer-ig', 'href'), 'https://www.instagram.com/jas.soulcareer/');
+  assert.equal(await page.getAttribute('#developer-ig', 'target'), '_blank');
+  assert.equal(await page.textContent('#developer-ig-handle'), 'Instagram @jas.soulcareer');
+  assert.match(await page.textContent('#app-version'), /^成功日記 v\d+$/);
+  if (SCREENSHOT_DIR) {
+    await page.locator('#app-version').scrollIntoViewIfNeeded();
+    await page.locator('#feedback-link').locator('..').screenshot({ path: join(SCREENSHOT_DIR, '64-settings-about.png') });
+  }
   assert.deepEqual(errors, []);
   await context.close();
 });
