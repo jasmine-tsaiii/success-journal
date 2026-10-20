@@ -39,6 +39,8 @@ function saveSession(data) {
       name: meta.full_name || meta.name || '',
       // 使用者在 App 裡設定的稱呼（存在帳號上，換裝置登入也找得到）；null 表示還沒設定過
       displayName: typeof meta.sj_display_name === 'string' ? meta.sj_display_name : null,
+      // 是否已記錄過從哪個分享連結來
+      hasRef: Boolean(meta.sj_ref),
     },
   };
   localStorage.setItem(AUTH_KEY, JSON.stringify(session));
@@ -156,6 +158,20 @@ export async function saveProfile(displayName) {
       body: JSON.stringify({ data: { sj_display_name: displayName } }),
     }),
     '稱呼儲存失敗',
+  );
+  updateStoredUser(await res.json());
+}
+
+/** 記下這個帳號是從哪個分享連結來的（{ source, medium, campaign, content, at }） */
+export async function saveRef(ref) {
+  const { source = '', medium = '', campaign = '', content = '', at = '' } = ref || {};
+  const res = await expectOk(
+    await api('/auth/v1/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { sj_ref: { source, medium, campaign, content, at } } }),
+    }),
+    '儲存來源失敗',
   );
   updateStoredUser(await res.json());
 }

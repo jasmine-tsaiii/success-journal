@@ -100,6 +100,15 @@ begin
       'd30', (select count(*) from per_user where days >= 30),
       'none', (select count(*) from per_user where days = 0)
     ),
+    'sources', (
+      select coalesce(jsonb_agg(jsonb_build_object('medium', x.medium, 'users', x.n) order by x.n desc, x.medium), '[]')
+      from (
+        select coalesce(nullif(au.raw_user_meta_data #>> '{sj_ref,medium}', ''), 'direct') as medium, count(*) as n
+        from users u
+        left join auth.users au on au.id = u.user_id
+        group by 1
+      ) x
+    ),
     'weekly', (
       select coalesce(jsonb_agg(jsonb_build_object(
         'week', w.week,

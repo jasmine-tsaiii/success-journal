@@ -42,7 +42,8 @@ import {
 } from './core.js';
 import { isStorageAvailable, loadEntries, loadSettings, loadTagList, loadThanksList, requestPersistence, saveEntries, saveSettings, saveTagList, saveThanksList } from './storage.js';
 import { initBoards } from './board-ui.js';
-import { canvasToBlob, renderDayCard, shareBackup, shareOrDownload } from './share.js';
+import { canvasToBlob, renderDayCard, renderInviteCard, renderThanksCard, shareBackup, shareOrDownload } from './share.js';
+import { parseRef, shareLink, stripUtm } from './ref.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
@@ -168,7 +169,14 @@ function addThanksRow() {
   const to = document.createElement('div');
   to.className = 'win-tags';
   to.id = `thanks-to-${i}`;
-  body.append(label, ta, to);
+  const send = document.createElement('button');
+  send.type = 'button';
+  send.className = 'text-btn thanks-send';
+  send.id = `thanks-send-${i}`;
+  send.textContent = '傳感謝卡給他 ↗';
+  send.hidden = true;
+  send.addEventListener('click', () => shareThanks(i));
+  body.append(label, ta, to, send);
   li.append(num, body);
   $('thanks-list').appendChild(li);
   thanksAreas.push(ta);
@@ -177,6 +185,7 @@ function addThanksRow() {
     scheduleSave();
     updateShareButton();
     updateAddThanks();
+    send.hidden = !ta.value.trim();
   });
   ta.addEventListener('blur', flushSave);
   ta.addEventListener('focus', () => {
@@ -399,6 +408,7 @@ function renderToday() {
   thanksAreas.forEach((ta, i) => {
     ta.value = thanks[i];
     autoGrow(ta);
+    $(`thanks-send-${i}`).hidden = !ta.value.trim();
   });
   state.thanksTo = cleanThanksTo(state.entries[key]?.gratitudeTo, thanks.length);
   activeThanks = null;
@@ -1109,38 +1119,35 @@ function updateShareButton() {
 
 let shareBlob = null;
 let shareUrl = null;
+let shareJob = null; // { filename, title, text, link, done, returnFocus }
 
 function closeShare() {
   $('share-sheet').hidden = true;
   if (shareUrl) URL.revokeObjectURL(shareUrl);
   shareUrl = null;
   shareBlob = null;
-  $('share-day').focus({ preventScroll: true });
+  const back = shareJob?.returnFocus;
+  shareJob = null;
+  back?.focus({ preventScroll: true });
 }
 
-/** 先顯示卡片預覽，確認後才分享或存圖 */
-async function shareToday() {
-  flushSave();
-  const key = state.date;
-  const { chakra, affirmation } = chakraForDate(key);
+/** 先顯示卡片預覽，確認後才分享或存圖。link 有值時可以另外複製邀請文字與連結 */
+async function openShareSheet({ render, alt, filename, title, text = '', link = '', done, returnFocus, square = false }) {
   const img = $('share-img');
   img.hidden = true;
+  img.alt = alt;
+  shareJob = { filename, title, text, link, done, returnFocus };
+  const job = shareJob;
+  document.querySelector('.share-frame').classList.toggle('square', square);
   $('share-loading').hidden = false;
   $('share-confirm').disabled = true;
+  $('share-copy').hidden = !link;
+  $('share-hint').textContent = link ? '分享圖片時會一起附上連結；也可以只複製連結傳給朋友。' : '手機上也可以長按圖片，直接存到相簿。';
   $('share-sheet').hidden = false;
   $('share-cancel').focus({ preventScroll: true });
   try {
-    const canvas = await renderDayCard({
-      date: key,
-      week: `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][weekdayIndex(key)]} · 週${WEEK_ZH[weekdayIndex(key)]}`,
-      wins: textareas.map((ta) => ta.value),
-      affirmation,
-      color: chakra.color,
-      colorName: chakra.colorName,
-      name: displayName(),
-      thanks: thanksAreas.map((ta) => ta.value),
-    });
-    if ($('share-sheet').hidden) return; // 製作途中按了關閉
+    const canvas = await render();
+    if (shareJob !== job) return; // 製作途中按了關閉
     shareBlob = await canvasToBlob(canvas);
     shareUrl = URL.createObjectURL(shareBlob);
     img.src = shareUrl;
@@ -1153,12 +1160,97 @@ async function shareToday() {
   }
 }
 
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function confirmShare() {
-  if (!shareBlob) return;
-  const result = await shareOrDownload(shareBlob, `success-journal-${state.date}.png`, '今天的小成功');
+  if (!shareBlob || !shareJob) return;
+  const job = shareJob;
+  const message = [job.text, job.link].filter(Boolean).join('\n');
+  const result = await shareOrDownload(shareBlob, job.filename, job.title, message);
   if (result === 'cancelled') return;
   closeShare();
-  if (result === 'downloaded') toast('已存下今天的小成功卡片');
+  if (result === 'downloaded') {
+    // 電腦上：存下圖片，同時把邀請文字與連結複製起來，方便貼到 LINE
+    const copied = job.link && (await copyText(message));
+    toast(copied ? `${job.done}，連結也複製好了` : job.done);
+  }
+}
+
+async function copyShareLink() {
+  if (!shareJob?.link) return;
+  const ok = await copyText([shareJob.text, shareJob.link].filter(Boolean).join('\n'));
+  toast(ok ? '已複製邀請文字與連結，貼到 LINE 就能傳給朋友' : shareJob.link);
+}
+
+function shareToday() {
+  flushSave();
+  const key = state.date;
+  const { chakra, affirmation } = chakraForDate(key);
+  openShareSheet({
+    alt: '今天的小成功卡片預覽',
+    filename: `success-journal-${key}.png`,
+    title: '今天的小成功',
+    text: '我用「成功日記」記下今天的小成功 ✨',
+    link: shareLink('day_card'),
+    done: '已存下今天的小成功卡片',
+    returnFocus: $('share-day'),
+    render: () =>
+      renderDayCard({
+        date: key,
+        week: `${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][weekdayIndex(key)]} · 週${WEEK_ZH[weekdayIndex(key)]}`,
+        wins: textareas.map((ta) => ta.value),
+        affirmation,
+        color: chakra.color,
+        colorName: chakra.colorName,
+        name: displayName(),
+        thanks: thanksAreas.map((ta) => ta.value),
+      }),
+  });
+}
+
+/** 感謝卡：把這一則感恩做成卡片，傳給被感謝的人 */
+function shareThanks(i) {
+  const text = thanksAreas[i]?.value.trim();
+  if (!text) return;
+  flushSave();
+  const to = state.thanksTo[i] || [];
+  const { chakra } = chakraForDate(state.date);
+  openShareSheet({
+    alt: '感謝卡預覽',
+    filename: `thank-you-${state.date}.png`,
+    title: '謝謝你',
+    text: `${to.length ? `${to.join('、')}，` : ''}想跟你說聲謝謝 ♡`,
+    link: shareLink('thanks_card'),
+    done: '已存下感謝卡',
+    returnFocus: $(`thanks-send-${i}`),
+    square: true,
+    render: () => renderThanksCard({ text, to, name: displayName(), date: state.date, color: chakra.color }),
+  });
+}
+
+/** 邀請卡：只放累積天數與件數，不放任何日記內容 */
+function shareInvite(e) {
+  flushSave();
+  const s = computeStats(state.entries, todayKey());
+  const { chakra } = chakraForDate(todayKey());
+  openShareSheet({
+    alt: '邀請卡預覽',
+    filename: 'success-journal-invite.png',
+    title: '一起來寫成功日記',
+    text: '我在用「成功日記」每天寫下三件小成功，邀請你一起來寫 🌱',
+    link: shareLink('invite_card'),
+    done: '已存下邀請卡',
+    returnFocus: e?.currentTarget,
+    square: true,
+    render: () => renderInviteCard({ days: s.totalDays, wins: s.totalItems, name: displayName(), color: chakra.color }),
+  });
 }
 
 /* ---------- 新手引導 ---------- */
@@ -1530,6 +1622,7 @@ async function afterSignIn(session) {
   if (session.user.displayName !== null) setDisplayName(session.user.displayName, { push: false });
   else setDisplayName(displayName() || session.user.name || '');
   toast(`已登入 ${session.user.email}，正在同步⋯⋯`);
+  pushRef();
   renderCloud();
   updateBackupNudge();
   await sync.syncNow();
@@ -1569,8 +1662,44 @@ function bindCloud() {
   if (cloud.getSession()) {
     sync.syncNow();
     refreshName();
+    pushRef();
   }
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && refreshName());
+}
+
+/* ---------- 從哪裡來（分享連結的 UTM） ---------- */
+
+const REF_KEY = 'success-journal.ref.v1';
+
+/** 朋友從分享連結點進來：記下第一次的來源，並把網址上的 utm_ 參數拿掉 */
+function captureRef() {
+  const ref = parseRef(location.search);
+  if (!ref) return;
+  try {
+    if (!localStorage.getItem(REF_KEY)) localStorage.setItem(REF_KEY, JSON.stringify(ref));
+    history.replaceState(history.state, '', stripUtm(location.href));
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/** 登入後把來源存到帳號上（只存第一次的，之後不覆蓋），讓使用狀況頁看得到大家從哪裡來 */
+async function pushRef() {
+  const session = cloud.getSession();
+  if (!session) return;
+  let ref;
+  try {
+    ref = JSON.parse(localStorage.getItem(REF_KEY) || 'null');
+  } catch {
+    return;
+  }
+  if (!ref || ref.saved) return;
+  try {
+    if (!session.user.hasRef) await cloud.saveRef(ref);
+    localStorage.setItem(REF_KEY, JSON.stringify({ ...ref, saved: true }));
+  } catch {
+    /* 下次再試 */
+  }
 }
 
 /* ---------- 稱呼 ---------- */
@@ -1639,6 +1768,9 @@ function bindBackupAndShare() {
   });
   $('share-day').addEventListener('click', shareToday);
   $('share-confirm').addEventListener('click', confirmShare);
+  $('share-copy').addEventListener('click', copyShareLink);
+  $('invite-review').addEventListener('click', shareInvite);
+  $('invite-settings').addEventListener('click', shareInvite);
   $('share-cancel').addEventListener('click', closeShare);
   $('share-sheet').addEventListener('click', (e) => e.target === e.currentTarget && closeShare());
   document.addEventListener('keydown', (e) => e.key === 'Escape' && !$('share-sheet').hidden && closeShare());
@@ -1647,6 +1779,7 @@ function bindBackupAndShare() {
 }
 
 function init() {
+  captureRef();
   bind();
   bindBackupAndShare();
   if (!state.settings.onboarded) {

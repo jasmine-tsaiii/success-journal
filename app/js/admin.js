@@ -126,6 +126,12 @@ export function render(s) {
     ],
     u.total,
   );
+  const SOURCE_NAME = { direct: '直接進入', thanks_card: '感謝卡', invite_card: '邀請卡', day_card: '分享的小成功' };
+  hbars(
+    $('chart-sources'),
+    (s.sources || []).map((x) => ({ label: SOURCE_NAME[x.medium] || x.medium, value: x.users })),
+    u.total,
+  );
   const t = new Date(s.generated_at);
   $('admin-updated').textContent = `更新於 ${t.toLocaleString('zh-TW', { dateStyle: 'medium', timeStyle: 'short' })}`;
 }

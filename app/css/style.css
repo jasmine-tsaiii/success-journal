@@ -2701,3 +2701,40 @@ label.set-row {
   flex: 1;
   min-width: 0;
 }
+
+/* 感謝卡、邀請朋友 */
+.thanks-send {
+  display: block;
+  margin: 6px 0 0 auto;
+  font-size: 13px;
+}
+
+.invite-line {
+  text-align: center;
+  margin: 14px 0 0;
+}
+
+.share-actions .btn[hidden] {
+  display: none;
+}
+
+.share-actions:has(#share-copy:not([hidden])) {
+  grid-template-columns: 1fr 1fr 1.5fr;
+}
+
+/* 感謝卡、邀請卡是 4:5，預覽框跟著變 */
+.share-frame.square {
+  aspect-ratio: 4 / 5;
+  height: auto;
+  width: min(100%, calc(64vh * 0.8), 512px);
+}
+
+.share-actions .btn {
+  white-space: nowrap;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.share-actions:has(#share-copy:not([hidden])) .btn {
+  letter-spacing: 0.06em;
+}

@@ -15,11 +15,11 @@ const isMobile = () => window.matchMedia('(pointer: coarse)').matches;
  * 分享或下載檔案：手機開啟分享選單（可存到相簿、iCloud、Google 雲端硬碟、LINE），電腦直接下載。
  * 回傳 'shared' | 'downloaded' | 'cancelled'
  */
-export async function shareOrDownload(blob, filename, title) {
+export async function shareOrDownload(blob, filename, title, text = '') {
   const file = new File([blob], filename, { type: blob.type });
   if (isMobile() && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], title });
+      await navigator.share(text ? { files: [file], title, text } : { files: [file], title });
       return 'shared';
     } catch (err) {
       if (err.name === 'AbortError') return 'cancelled';
@@ -58,7 +58,7 @@ function spaced(ctx, str, x, y, ls, align = 'left') {
   }
 }
 
-function grain(ctx) {
+function grain(ctx, w = W, h = H) {
   const c = document.createElement('canvas');
   c.width = c.height = 220;
   const g = c.getContext('2d');
@@ -74,7 +74,7 @@ function grain(ctx) {
   g.putImageData(img, 0, 0);
   ctx.globalCompositeOperation = 'multiply';
   ctx.fillStyle = ctx.createPattern(c, 'repeat');
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, w, h);
   ctx.globalCompositeOperation = 'source-over';
 }
 
@@ -204,6 +204,134 @@ export async function renderDayCard(day) {
   ctx.font = `500 24px ${LATIN}`;
   spaced(ctx, SITE_URL.toUpperCase(), W / 2, H - 74, 3, 'center');
   grain(ctx);
+  return canvas;
+}
+
+/* ---------- 感謝卡與邀請卡（1080×1350，適合 LINE 與 IG 貼文） ---------- */
+
+const CW = 1080;
+const CH = 1350;
+
+function cardBase(color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = CW;
+  canvas.height = CH;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, CW, CH);
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, CW, 18);
+  return { canvas, ctx };
+}
+
+function cardFooter(ctx, line) {
+  ctx.fillStyle = C.rule;
+  ctx.fillRect(M, CH - 190, CW - M * 2, 2);
+  ctx.fillStyle = C.muted;
+  ctx.font = `500 28px ${SERIF}`;
+  spaced(ctx, line, CW / 2, CH - 122, 4, 'center');
+  ctx.font = `500 24px ${LATIN}`;
+  spaced(ctx, SITE_URL.toUpperCase(), CW / 2, CH - 76, 3, 'center');
+}
+
+/** 置中排版一段文字，回傳最後一行的 y */
+function centered(ctx, text, y, { size, lh, maxLines, maxW = CW - M * 2 - 60, ls = 3 }) {
+  ctx.font = `500 ${size}px ${SERIF}`;
+  let lines = wrapText(text, maxW, (str) => ctx.measureText(str).width + [...str].length * ls);
+  if (lines.length > maxLines) lines = [...lines.slice(0, maxLines - 1), `${lines[maxLines - 1].slice(0, -1)}⋯`];
+  lines.forEach((line, i) => spaced(ctx, line, CW / 2, y + i * lh, ls, 'center'));
+  return y + (lines.length - 1) * lh;
+}
+
+/**
+ * 感謝卡：thanks = { text, to: ['媽媽'], name, date, color }
+ * 寫給被感謝的人，所以卡片上只有這一則感謝。
+ */
+export async function renderThanksCard({ text, to = [], name = '', date, color = C.accent }) {
+  const toLine = to.length ? `謝謝你，${to.join('、')}` : '謝謝你';
+  const from = name.trim() ? `— ${name.trim()}` : '';
+  await ensureFonts(`${text}${toLine}${from}♡在成功日記寫下的感謝`);
+  const { canvas, ctx } = cardBase(color);
+
+  ctx.fillStyle = color;
+  ctx.font = `600 30px ${LATIN}`;
+  spaced(ctx, 'THANK YOU', CW / 2, 190, 12, 'center');
+  ctx.font = `500 90px ${SERIF}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('♡', CW / 2, 330);
+  ctx.textAlign = 'left';
+
+  ctx.fillStyle = C.ink;
+  const len = [...text.trim()].length;
+  const size = len > 60 ? 46 : len > 30 ? 54 : 64;
+  const lh = Math.round(size * 1.6);
+  // 先算行數，讓整段文字在愛心與署名之間置中
+  ctx.font = `500 ${size}px ${SERIF}`;
+  const n = Math.min(6, wrapText(text.trim(), CW - M * 2 - 60, (str) => ctx.measureText(str).width + [...str].length * 3).length);
+  let y = centered(ctx, text.trim(), Math.round(600 - ((n - 1) * lh) / 2), { size, lh, maxLines: 6 });
+
+  y = Math.max(y + 150, 800);
+  ctx.fillStyle = C.ink2;
+  ctx.font = `500 44px ${SERIF}`;
+  spaced(ctx, toLine, CW / 2, y, 6, 'center');
+  if (from) {
+    ctx.fillStyle = C.muted;
+    ctx.font = `500 34px ${SERIF}`;
+    spaced(ctx, from, CW / 2, y + 74, 4, 'center');
+  }
+  if (date) {
+    ctx.fillStyle = C.muted;
+    ctx.font = `500 26px ${LATIN}`;
+    spaced(ctx, date.replaceAll('-', '.'), CW / 2, y + (from ? 136 : 74), 4, 'center');
+  }
+  cardFooter(ctx, '在成功日記寫下的感謝');
+  grain(ctx, CW, CH);
+  return canvas;
+}
+
+/** 邀請卡：days = 累積記錄天數，wins = 累積小成功件數（不放任何日記內容） */
+export async function renderInviteCard({ days = 0, wins = 0, name = '', color = C.accent }) {
+  const who = name.trim() ? `${name.trim()}${/[A-Za-z0-9]$/.test(name.trim()) ? ' ' : ''}` : '我';
+  const head = days > 0 ? `${who}已經記錄了` : `${who}開始寫成功日記了`;
+  await ensureFonts(`${head}天件小成功一起來寫成功日記吧每天寫下三件小成功看見自己一點一點在前進免費・不用下載・打開網頁就能寫邀請你`);
+  const { canvas, ctx } = cardBase(color);
+
+  ctx.fillStyle = C.ink;
+  ctx.font = `700 72px ${SERIF}`;
+  spaced(ctx, '成功日記', CW / 2, 200, 18, 'center');
+  ctx.fillStyle = color;
+  ctx.font = `600 26px ${LATIN}`;
+  spaced(ctx, 'LITTLE WINS · INVITATION', CW / 2, 262, 7, 'center');
+
+  ctx.fillStyle = C.ink2;
+  ctx.font = `500 46px ${SERIF}`;
+  spaced(ctx, head, CW / 2, 430, 5, 'center');
+  if (days > 0) {
+    ctx.fillStyle = C.ink;
+    ctx.font = `500 220px ${LATIN}`;
+    ctx.textAlign = 'center';
+    ctx.fillText(String(days), CW / 2, 660);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = C.ink2;
+    ctx.font = `500 46px ${SERIF}`;
+    spaced(ctx, wins > 0 ? `天・${wins} 件小成功` : '天的小成功', CW / 2, 750, 5, 'center');
+  }
+
+  // 邀請的話（紙卡）
+  const top = 850;
+  ctx.fillStyle = C.paper;
+  ctx.fillRect(M, top, CW - M * 2, 250);
+  ctx.fillStyle = color;
+  ctx.fillRect(M, top, CW - M * 2, 8);
+  ctx.fillStyle = C.ink;
+  ctx.font = `500 48px ${SERIF}`;
+  spaced(ctx, '邀請你一起來寫', CW / 2, top + 100, 6, 'center');
+  ctx.fillStyle = C.ink2;
+  ctx.font = `500 32px ${SERIF}`;
+  spaced(ctx, '每天寫下三件小成功，看見自己一點一點在前進', CW / 2, top + 170, 2, 'center');
+  cardFooter(ctx, '免費・不用下載・打開網頁就能寫');
+  grain(ctx, CW, CH);
   return canvas;
 }
 

@@ -1252,3 +1252,82 @@ test('使用狀況頁：沒登入時請先登入；不是管理者看不到；�
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('感謝卡與邀請卡：先預覽、可複製連結；朋友從分享連結進來會記下來源，登入後存到帳號', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+  // 感謝卡：寫了感恩才出現按鈕
+  assert.equal(await page.isHidden('#thanks-send-0'), true);
+  await page.fill('#thanks-0', '媽媽煮了我最愛的湯');
+  await page.click('#thanks-to-0 .tag-chip >> text=家人');
+  assert.equal(await page.isVisible('#thanks-send-0'), true);
+  await page.click('#thanks-send-0');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.getAttribute('#share-img', 'alt'), '感謝卡預覽');
+  assert.equal(await page.isVisible('#share-copy'), true);
+  const size = await page.evaluate(() => [document.getElementById('share-img').naturalWidth, document.getElementById('share-img').naturalHeight]);
+  assert.deepEqual(size, [1080, 1350]);
+  if (SCREENSHOT_DIR) {
+    const src = await page.getAttribute('#share-img', 'src');
+    const b64 = await page.evaluate(async (u) => {
+      const b = await (await fetch(u)).blob();
+      return new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result.split(',')[1]); f.readAsDataURL(b); });
+    }, src);
+    await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '43-thanks-card.png'), Buffer.from(b64, 'base64')));
+  }
+  await page.click('#share-copy');
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  assert.match(clip, /家人，想跟你說聲謝謝/);
+  assert.match(clip, /utm_source=success_journal&utm_medium=thanks_card&utm_campaign=friend_referral/);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-confirm')]);
+  assert.match(dl.suggestedFilename(), /^thank-you-2026-10-01\.png$/);
+  await page.waitForSelector('#share-sheet', { state: 'hidden' });
+
+  // 今天的小成功分享也附上連結
+  await page.click('#share-day');
+  await page.waitForSelector('#share-img:not([hidden])');
+  await page.click('#share-copy');
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /utm_medium=day_card/);
+  await page.click('#share-cancel');
+
+  // 邀請卡：回顧頁與設定頁都有
+  await page.click('#tab-calendar');
+  await page.click('#invite-review');
+  await page.waitForSelector('#share-img:not([hidden])');
+  assert.equal(await page.getAttribute('#share-img', 'alt'), '邀請卡預覽');
+  if (SCREENSHOT_DIR) {
+    const src = await page.getAttribute('#share-img', 'src');
+    const b64 = await page.evaluate(async (u) => {
+      const b = await (await fetch(u)).blob();
+      return new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result.split(',')[1]); f.readAsDataURL(b); });
+    }, src);
+    await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '44-invite-card.png'), Buffer.from(b64, 'base64')));
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '45-share-sheet.png') });
+  }
+  await page.click('#share-copy');
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /邀請你一起來寫[\s\S]*utm_medium=invite_card/);
+  await page.click('#share-cancel');
+  await page.click('#tab-data');
+  await page.click('#invite-settings');
+  await page.waitForSelector('#share-img:not([hidden])');
+  await page.click('#share-cancel');
+  await context.close();
+
+  // 朋友點了連結進來：記下來源、網址上的 utm 拿掉；登入後存到帳號（只存第一次）
+  const friend = await newPage({ cloud: server });
+  await friend.page.goto(`${origin}${BASE}?utm_source=success_journal&utm_medium=thanks_card&utm_campaign=friend_referral`);
+  await friend.page.waitForFunction(() => !location.search);
+  const ref = await friend.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.ref.v1')));
+  assert.equal(ref.medium, 'thanks_card');
+  await friend.page.goto(`${origin}${BASE}?utm_source=x&utm_medium=other`);
+  assert.equal((await friend.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.ref.v1')))).medium, 'thanks_card', '只記第一次');
+  await friend.page.evaluate(() => (window.__fakeEmail = 'bea@example.com'));
+  await signIn(friend.page);
+  await expectEventually(() => server.meta.get('uid-bea')?.sj_ref?.medium === 'thanks_card', '來源存到帳號上');
+  assert.equal(server.meta.get('uid-bea').sj_ref.campaign, 'friend_referral');
+  assert.deepEqual(errors, []);
+  assert.deepEqual(friend.errors, []);
+  await friend.context.close();
+});

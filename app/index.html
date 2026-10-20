@@ -41,7 +41,7 @@
     // 版本檢查：頁面一定是最新的，但舊版的離線快取可能給了舊程式（畫面會少東西）。
     // 發現程式版本和頁面不同時，清掉舊快取、更新 Service Worker，重新載入一次。
     (function () {
-      var PAGE_VERSION = 'v25';
+      var PAGE_VERSION = 'v26';
       window.addEventListener('load', function () {
         if (window.__SJ_APP === PAGE_VERSION) return;
         try {
@@ -222,6 +222,7 @@
       </div>
       <p class="stats-extra" id="stat-longest"></p>
       <p class="stats-extra stats-thanks" id="stat-thanks" hidden></p>
+      <p class="invite-line"><button type="button" class="text-btn" id="invite-review">邀請朋友一起寫 →</button></p>
 
       <section class="jar" id="jar" aria-labelledby="jar-title">
         <p class="label-caps">Gratitude Jar</p>
@@ -383,6 +384,10 @@
       <!-- App -->
       <section class="set-group" aria-labelledby="set-app">
         <h2 class="set-label" id="set-app"><span class="label-caps">App</span>關於</h2>
+        <button type="button" class="set-row set-link" id="invite-settings">
+          <span class="set-title">邀請朋友一起寫</span>
+          <span class="set-arrow" aria-hidden="true">→</span>
+        </button>
         <button type="button" class="set-row set-link" id="install-btn" hidden>
           <span class="set-title">安裝到主畫面</span>
           <span class="set-arrow" aria-hidden="true">→</span>
@@ -472,9 +477,10 @@
         <img id="share-img" alt="今天的小成功卡片預覽" hidden>
         <p class="share-loading" id="share-loading">正在製作卡片⋯⋯</p>
       </div>
-      <p class="small share-hint">手機上也可以長按圖片，直接存到相簿。</p>
+      <p class="small share-hint" id="share-hint">手機上也可以長按圖片，直接存到相簿。</p>
       <div class="share-actions">
         <button type="button" class="btn" id="share-cancel">關閉</button>
+        <button type="button" class="btn" id="share-copy" hidden>複製連結</button>
         <button type="button" class="btn btn-primary" id="share-confirm" disabled>分享／儲存</button>
       </div>
     </div>
