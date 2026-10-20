@@ -1268,6 +1268,9 @@ test('感謝卡與邀請卡：先預覽、可複製連結；朋友從分享連�
   const { context, page, errors } = await newPage({ cloud: server });
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 
+  await page.fill('#display-name', 'Jas').catch(() => {});
+  await page.fill('#item-0', '完成提案');
+  await page.fill('#item-1', '散步半小時');
   // 感謝卡：寫了感恩才出現按鈕
   assert.equal(await page.isHidden('#thanks-send-0'), true);
   await page.fill('#thanks-0', '媽媽煮了我最愛的湯');

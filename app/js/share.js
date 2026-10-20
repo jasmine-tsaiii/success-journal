@@ -296,7 +296,7 @@ export async function renderThanksCard({ text, name = '', date, color = C.accent
 export async function renderInviteCard({ days = 0, wins = 0, name = '', color = C.accent }) {
   const who = name.trim() ? `${name.trim()}${/[A-Za-z0-9]$/.test(name.trim()) ? ' ' : ''}` : '我';
   const head = days > 0 ? `${who}已經記錄了` : `${who}開始寫成功日記了`;
-  await ensureFonts(`${head}天件小成功一起來寫成功日記吧每天寫下三件小成功看見自己一點一點在前進邀請你`);
+  await ensureFonts(`${head}天件小成功寫下了一起來寫成功日記吧每天寫下三件小成功看見自己一點一點在前進邀請你`);
   const { canvas, ctx } = cardBase(color);
 
   ctx.fillStyle = C.ink;
@@ -310,14 +310,24 @@ export async function renderInviteCard({ days = 0, wins = 0, name = '', color = 
   ctx.font = `500 46px ${SERIF}`;
   spaced(ctx, head, CW / 2, 430, 5, 'center');
   if (days > 0) {
+    // 「18 天」數字與單位排在同一行、一起置中
+    const num = String(days);
+    ctx.font = `500 220px ${LATIN}`;
+    const numW = ctx.measureText(num).width;
+    ctx.font = `500 64px ${SERIF}`;
+    const unitW = ctx.measureText('天').width;
+    const gap = 18;
+    const x0 = (CW - (numW + gap + unitW)) / 2;
     ctx.fillStyle = C.ink;
     ctx.font = `500 220px ${LATIN}`;
-    ctx.textAlign = 'center';
-    ctx.fillText(String(days), CW / 2, 660);
-    ctx.textAlign = 'left';
+    ctx.fillText(num, x0, 650);
     ctx.fillStyle = C.ink2;
-    ctx.font = `500 46px ${SERIF}`;
-    spaced(ctx, wins > 0 ? `天・${wins} 件小成功` : '天的小成功', CW / 2, 750, 5, 'center');
+    ctx.font = `500 64px ${SERIF}`;
+    ctx.fillText('天', x0 + numW + gap, 650);
+    if (wins > 0) {
+      ctx.font = `500 42px ${SERIF}`;
+      spaced(ctx, `寫下了 ${wins} 件小成功`, CW / 2, 750, 5, 'center');
+    }
   }
 
   // 邀請的話（紙卡）
