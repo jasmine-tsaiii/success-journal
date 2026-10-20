@@ -1220,18 +1220,17 @@ function shareThanks(i) {
   const text = thanksAreas[i]?.value.trim();
   if (!text) return;
   flushSave();
-  const to = state.thanksTo[i] || [];
   const { chakra } = chakraForDate(state.date);
   openShareSheet({
     alt: '感謝卡預覽',
     filename: `thank-you-${state.date}.png`,
     title: '謝謝你',
-    text: `${to.length ? `${to.join('、')}，` : ''}想跟你說聲謝謝 ♡`,
+    text: '想跟你說聲謝謝 ♡',
     link: shareLink('thanks_card'),
     done: '已存下感謝卡',
     returnFocus: $(`thanks-send-${i}`),
     square: true,
-    render: () => renderThanksCard({ text, to, name: displayName(), date: state.date, color: chakra.color }),
+    render: () => renderThanksCard({ text, name: displayName(), date: state.date, color: chakra.color }),
   });
 }
 
@@ -1244,7 +1243,7 @@ function shareInvite(e) {
     alt: '邀請卡預覽',
     filename: 'success-journal-invite.png',
     title: '一起來寫成功日記',
-    text: '我在用「成功日記」每天寫下三件小成功，邀請你一起來寫 🌱',
+    text: '我在用「成功日記」每天寫下三件小成功，拿起手機就能記錄，邀請你一起來寫 🌱',
     link: shareLink('invite_card'),
     done: '已存下邀請卡',
     returnFocus: e?.currentTarget,

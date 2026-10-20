@@ -1279,7 +1279,8 @@ test('感謝卡與邀請卡：先預覽、可複製連結；朋友從分享連�
   }
   await page.click('#share-copy');
   const clip = await page.evaluate(() => navigator.clipboard.readText());
-  assert.match(clip, /家人，想跟你說聲謝謝/);
+  assert.match(clip, /^想跟你說聲謝謝 ♡/);
+  assert.doesNotMatch(clip, /家人/);
   assert.match(clip, /utm_source=success_journal&utm_medium=thanks_card&utm_campaign=friend_referral/);
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#share-confirm')]);
   assert.match(dl.suggestedFilename(), /^thank-you-2026-10-01\.png$/);
@@ -1307,7 +1308,7 @@ test('感謝卡與邀請卡：先預覽、可複製連結；朋友從分享連�
     await page.screenshot({ path: join(SCREENSHOT_DIR, '45-share-sheet.png') });
   }
   await page.click('#share-copy');
-  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /邀請你一起來寫[\s\S]*utm_medium=invite_card/);
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /拿起手機就能記錄，邀請你一起來寫[\s\S]*utm_medium=invite_card/);
   await page.click('#share-cancel');
   await page.click('#tab-data');
   await page.click('#invite-settings');

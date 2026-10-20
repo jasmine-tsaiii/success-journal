@@ -225,12 +225,14 @@ function cardBase(color) {
   return { canvas, ctx };
 }
 
-function cardFooter(ctx, line) {
+function cardFooter(ctx, line = '') {
   ctx.fillStyle = C.rule;
-  ctx.fillRect(M, CH - 190, CW - M * 2, 2);
+  ctx.fillRect(M, CH - (line ? 190 : 150), CW - M * 2, 2);
   ctx.fillStyle = C.muted;
-  ctx.font = `500 28px ${SERIF}`;
-  spaced(ctx, line, CW / 2, CH - 122, 4, 'center');
+  if (line) {
+    ctx.font = `500 28px ${SERIF}`;
+    spaced(ctx, line, CW / 2, CH - 122, 4, 'center');
+  }
   ctx.font = `500 24px ${LATIN}`;
   spaced(ctx, SITE_URL.toUpperCase(), CW / 2, CH - 76, 3, 'center');
 }
@@ -245,11 +247,11 @@ function centered(ctx, text, y, { size, lh, maxLines, maxW = CW - M * 2 - 60, ls
 }
 
 /**
- * 感謝卡：thanks = { text, to: ['媽媽'], name, date, color }
+ * 感謝卡：{ text, name, date, color }
  * 寫給被感謝的人，所以卡片上只有這一則感謝。
  */
-export async function renderThanksCard({ text, to = [], name = '', date, color = C.accent }) {
-  const toLine = to.length ? `謝謝你，${to.join('、')}` : '謝謝你';
+export async function renderThanksCard({ text, name = '', date, color = C.accent }) {
+  const toLine = '謝謝你';
   const from = name.trim() ? `— ${name.trim()}` : '';
   await ensureFonts(`${text}${toLine}${from}♡在成功日記寫下的感謝`);
   const { canvas, ctx } = cardBase(color);
@@ -294,7 +296,7 @@ export async function renderThanksCard({ text, to = [], name = '', date, color =
 export async function renderInviteCard({ days = 0, wins = 0, name = '', color = C.accent }) {
   const who = name.trim() ? `${name.trim()}${/[A-Za-z0-9]$/.test(name.trim()) ? ' ' : ''}` : '我';
   const head = days > 0 ? `${who}已經記錄了` : `${who}開始寫成功日記了`;
-  await ensureFonts(`${head}天件小成功一起來寫成功日記吧每天寫下三件小成功看見自己一點一點在前進免費・不用下載・打開網頁就能寫邀請你`);
+  await ensureFonts(`${head}天件小成功一起來寫成功日記吧每天寫下三件小成功看見自己一點一點在前進邀請你`);
   const { canvas, ctx } = cardBase(color);
 
   ctx.fillStyle = C.ink;
@@ -330,7 +332,7 @@ export async function renderInviteCard({ days = 0, wins = 0, name = '', color = 
   ctx.fillStyle = C.ink2;
   ctx.font = `500 32px ${SERIF}`;
   spaced(ctx, '每天寫下三件小成功，看見自己一點一點在前進', CW / 2, top + 170, 2, 'center');
-  cardFooter(ctx, '免費・不用下載・打開網頁就能寫');
+  cardFooter(ctx);
   grain(ctx, CW, CH);
   return canvas;
 }
