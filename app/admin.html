@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>使用狀況｜成功日記</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#F3EBDF">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="icons/app-favicon-64.png" type="image/png" sizes="64x64">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <main class="admin">
+    <a class="admin-back" href="./">← 回到成功日記</a>
+    <p class="label-caps admin-kicker">Dashboard</p>
+    <h1 class="admin-title">使用狀況</h1>
+
+    <p class="admin-msg" id="admin-msg">讀取中⋯⋯</p>
+
+    <div id="admin-body" hidden>
+      <div class="admin-bar">
+        <span class="small" id="admin-updated"></span>
+        <button type="button" class="text-btn" id="admin-refresh">重新整理</button>
+      </div>
+
+      <section class="admin-sec" aria-labelledby="sec-users">
+        <h2 class="admin-h" id="sec-users"><span class="label-caps">People</span>使用人數</h2>
+        <div class="kpi-grid" id="kpi-users"></div>
+      </section>
+
+      <section class="admin-sec" aria-labelledby="sec-writing">
+        <h2 class="admin-h" id="sec-writing"><span class="label-caps">Writing</span>累積的紀錄</h2>
+        <div class="kpi-grid" id="kpi-writing"></div>
+      </section>
+
+      <section class="admin-sec" aria-labelledby="sec-daily">
+        <h2 class="admin-h" id="sec-daily"><span class="label-caps">Last 30 Days</span>每天有寫的人數</h2>
+        <div class="col-chart" id="chart-daily" role="img"></div>
+      </section>
+
+      <section class="admin-sec" aria-labelledby="sec-weekly">
+        <h2 class="admin-h" id="sec-weekly"><span class="label-caps">Last 12 Weeks</span>每週</h2>
+        <p class="chart-cap">有寫日記的人數</p>
+        <div class="col-chart" id="chart-writers" role="img"></div>
+        <p class="chart-cap">新加入的人數</p>
+        <div class="col-chart" id="chart-new" role="img"></div>
+      </section>
+
+      <section class="admin-sec" aria-labelledby="sec-depth">
+        <h2 class="admin-h" id="sec-depth"><span class="label-caps">Habit</span>每個人寫了幾天</h2>
+        <div class="tag-bars" id="chart-depth"></div>
+      </section>
+
+      <section class="admin-sec" aria-labelledby="sec-features">
+        <h2 class="admin-h" id="sec-features"><span class="label-caps">Features</span>用過這些功能的人</h2>
+        <div class="tag-bars" id="chart-features"></div>
+      </section>
+
+      <p class="small admin-note">只統計登入並同步過的使用者；沒有登入的人，資料只存在自己的手機裡，這裡看不到。這頁只顯示整體數字，不會顯示任何人的日記內容。</p>
+    </div>
+  </main>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

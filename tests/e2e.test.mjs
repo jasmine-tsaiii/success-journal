@@ -654,6 +654,7 @@ function fakeCloud() {
   const docs = new Map(); // `${uid}|${kind}|${key}` → row
   const photos = new Map(); // path → { body, type }
   const users = new Map(); // uid → email
+  const admins = new Set(); // 可以看統計的 email
   let tick = Date.parse('2026-10-01T00:00:00Z');
   const nextSyncedAt = () => new Date((tick += 1000)).toISOString().replace('Z', '+00:00');
   const cors = {
@@ -728,6 +729,10 @@ function fakeCloud() {
       }
       return json(route, 201, accepted);
     }
+    if (path === '/rest/v1/rpc/sj_admin_stats') {
+      if (!admins.has(users.get(uid))) return json(route, 403, { code: '42501', message: '沒有權限' });
+      return json(route, 200, ADMIN_STATS);
+    }
     if (path === '/rest/v1/rpc/delete_my_account') {
       for (const id of [...docs.keys()]) if (id.startsWith(`${uid}|`)) docs.delete(id);
       users.delete(uid);
@@ -760,6 +765,7 @@ function fakeCloud() {
     photos,
     users,
     meta,
+    admins,
     async attach(context) {
       await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'text/javascript' }, body: gsi }));
       await context.route(/^https:\/\/[a-z0-9]+\.supabase\.co\//, handle);
@@ -1203,6 +1209,46 @@ test('感謝的對象：寫感恩時可以自訂新增；設定頁可以新增�
   await page.reload();
   await page.click('#tab-data');
   assert.ok((await page.locator('#thanks-manage').textContent()).includes('室友'));
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+const ADMIN_STATS = {
+  generated_at: '2026-10-01T01:00:00Z',
+  users: { total: 40, active7: 18, active30: 31, new7: 5, new30: 12 },
+  writing: { entry_days: 812, wins: 2650, thanks: 640, reflections: 210, boards: 22, today_writers: 9 },
+  features: { thanks: 25, reflections: 14, boards: 17 },
+  depth: { none: 3, d1: 8, d2_6: 12, d7_29: 11, d30: 6 },
+  weekly: Array.from({ length: 12 }, (_, i) => ({ week: new Date(Date.UTC(2026, 6, 13 + i * 7)).toISOString().slice(0, 10), writers: 6 + i, new_users: i % 4, entry_days: 30 + i * 3 })),
+  daily: Array.from({ length: 30 }, (_, i) => ({ date: new Date(Date.UTC(2026, 8, 2 + i)).toISOString().slice(0, 10), writers: (i * 7) % 11, wins: i })),
+};
+
+test('使用狀況頁：沒登入時請先登入；不是管理者看不到；管理者看到整體數字與圖表', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server });
+  await page.goto(`${origin}${BASE}admin.html`);
+  await page.waitForFunction(() => /請先/.test(document.getElementById('admin-msg').textContent));
+  assert.equal(await page.isHidden('#admin-body'), true);
+
+  // 一般使用者登入：沒有權限
+  await page.goto(origin + BASE);
+  await signIn(page);
+  await page.goto(`${origin}${BASE}admin.html`);
+  await page.waitForFunction(() => /沒有/.test(document.getElementById('admin-msg').textContent));
+  assert.equal(await page.isHidden('#admin-body'), true);
+
+  // 加入管理者名單後
+  server.admins.add('amy@example.com');
+  await page.reload();
+  await page.waitForSelector('#admin-body:not([hidden])');
+  const users = await page.locator('#kpi-users .kpi-value').allTextContents();
+  assert.deepEqual(users, ['40', '18', '31', '9']);
+  assert.match(await page.textContent('#kpi-writing'), /2,650/);
+  assert.match(await page.textContent('#kpi-writing'), /平均每人 20\.3 天/);
+  assert.equal(await page.locator('#chart-daily .col').count(), 30);
+  assert.equal(await page.locator('#chart-writers .col').count(), 12);
+  assert.match(await page.textContent('#chart-depth'), /30 天以上6・15%/);
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '99-admin.png'), fullPage: true });
   assert.deepEqual(errors, []);
   await context.close();
 });

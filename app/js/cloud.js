@@ -226,6 +226,18 @@ export async function downloadPhoto(id) {
   return res.blob();
 }
 
+/* ---------- 管理者統計 ---------- */
+
+/** 使用狀況統計（只有管理者名單上的帳號可以呼叫） */
+export async function fetchAdminStats() {
+  const res = await api('/rest/v1/rpc/sj_admin_stats', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  if (res.ok) return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 403 || data.code === '42501') throw new CloudError('這個帳號沒有查看統計的權限', 403);
+  if (res.status === 404 || data.code === 'PGRST202') throw new CloudError('資料庫還沒有統計功能，請先在 Supabase 執行 supabase/admin.sql', 404);
+  throw new CloudError(data.message || '讀取統計失敗', res.status);
+}
+
 /* ---------- 刪除帳號 ---------- */
 
 /** 刪除雲端上的照片、日記與帳號本身（這台裝置上的資料不受影響） */
