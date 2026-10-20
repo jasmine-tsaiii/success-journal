@@ -12,12 +12,12 @@ if (theme === 'light' || theme === 'dark') document.documentElement.dataset.them
 
 function kpis(el, items) {
   el.textContent = '';
-  for (const [label, value, sub] of items) {
+  for (const [label, value, sub, raw] of items) {
     const box = document.createElement('div');
     box.className = 'kpi';
     const v = document.createElement('p');
     v.className = 'kpi-value';
-    v.textContent = fmt(value);
+    v.textContent = raw ? value : fmt(value);
     const l = document.createElement('p');
     l.className = 'kpi-label';
     l.textContent = label;
@@ -32,31 +32,52 @@ function kpis(el, items) {
   }
 }
 
-/** 直條圖：points = [{ label, value, tip }]，只在最高的一根與最後一根標數字 */
+/**
+ * 直條圖：points = [{ label, value, detail }]。
+ * 點一下（或滑過、用鍵盤選）任一根，上方會顯示那一天／那一週的數字；預設顯示最後一根。
+ */
 function columns(el, points, unit) {
   el.textContent = '';
+  const readout = document.createElement('p');
+  readout.className = 'chart-readout';
+  readout.setAttribute('aria-live', 'polite');
+  const plot = document.createElement('div');
+  plot.className = 'col-chart';
+  plot.setAttribute('role', 'group');
+  el.append(readout, plot);
   const max = Math.max(1, ...points.map((p) => p.value));
-  const maxAt = points.findIndex((p) => p.value === max);
-  el.setAttribute('aria-label', points.map((p) => `${p.tip}：${p.value} ${unit}`).join('，'));
+  const cols = [];
+  const select = (i) => {
+    cols.forEach((c, k) => {
+      c.classList.toggle('on', k === i);
+      c.setAttribute('aria-pressed', String(k === i));
+    });
+    readout.textContent = points[i].detail;
+  };
   points.forEach((p, i) => {
-    const col = document.createElement('div');
+    const col = document.createElement('button');
+    col.type = 'button';
     col.className = 'col';
-    col.title = `${p.tip}：${fmt(p.value)} ${unit}`;
+    col.setAttribute('aria-label', p.detail);
     const bar = document.createElement('span');
     bar.className = 'col-bar';
     bar.style.height = p.value ? `${Math.max(3, (p.value / max) * 100)}%` : '0';
-    if (p.value && (i === maxAt || i === points.length - 1)) {
-      const v = document.createElement('span');
-      v.className = 'col-value';
-      v.textContent = fmt(p.value);
-      bar.appendChild(v);
-    }
     const x = document.createElement('span');
     x.className = 'col-x';
     x.textContent = p.label;
     col.append(bar, x);
-    el.appendChild(col);
+    col.addEventListener('click', () => select(i));
+    col.addEventListener('mouseenter', () => select(i));
+    col.addEventListener('focus', () => select(i));
+    plot.appendChild(col);
+    cols.push(col);
   });
+  // 最高值標在格線上，讓人一眼知道刻度
+  const top = document.createElement('span');
+  top.className = 'col-max';
+  top.textContent = `最高 ${fmt(max)} ${unit}`;
+  plot.appendChild(top);
+  if (points.length) select(points.length - 1);
 }
 
 function hbars(el, rows, total) {
@@ -79,6 +100,10 @@ const md = (iso) => {
   const [, m, d] = iso.split('-').map(Number);
   return `${m}/${d}`;
 };
+const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
+const wd = (iso) => WEEKDAY[new Date(`${iso}T00:00:00Z`).getUTCDay()];
+const addDays = (iso, n) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+const rate = (n, total) => (total ? `${Math.round((n / total) * 100)}%` : '–');
 
 export function render(s) {
   const u = s.users;
@@ -98,12 +123,35 @@ export function render(s) {
   ]);
   columns(
     $('chart-daily'),
-    s.daily.map((d, i) => ({ label: (s.daily.length - 1 - i) % 7 === 0 ? md(d.date) : '', tip: md(d.date), value: d.writers })),
+    s.daily.map((d, i) => ({
+      label: (s.daily.length - 1 - i) % 7 === 0 ? md(d.date) : '',
+      value: d.writers,
+      detail: `${md(d.date)}（週${wd(d.date)}）${i === s.daily.length - 1 ? '今天' : ''}：${fmt(d.writers)} 人有寫・${fmt(d.wins)} 件小成功`,
+    })),
     '人',
   );
-  const weekPts = (key) => s.weekly.map((x, i) => ({ label: (s.weekly.length - 1 - i) % 2 === 0 ? md(x.week) : '', tip: `${md(x.week)} 那週`, value: x[key] }));
-  columns($('chart-writers'), weekPts('writers'), '人');
-  columns($('chart-new'), weekPts('new_users'), '人');
+  const weekLabel = (x) => `${md(x.week)}–${md(addDays(x.week, 6))}`;
+  const weekTick = (i) => ((s.weekly.length - 1 - i) % 2 === 0 ? md(s.weekly[i].week) : '');
+  columns(
+    $('chart-writers'),
+    s.weekly.map((x, i) => ({ label: weekTick(i), value: x.writers, detail: `${weekLabel(x)} 那週：${fmt(x.writers)} 人有寫・共 ${fmt(x.entry_days)} 篇` })),
+    '人',
+  );
+  columns(
+    $('chart-new'),
+    s.weekly.map((x, i) => ({ label: weekTick(i), value: x.new_users, detail: `${weekLabel(x)} 那週：${fmt(x.new_users)} 人新加入` })),
+    '人',
+  );
+
+  // 留存與黏著度
+  const r = s.retention || {};
+  kpis($('kpi-retention'), [
+    ['第一週回來寫', rate(r.week1_returned, r.week1_cohort), `開始寫的 7 天內又回來寫・${fmt(r.week1_returned)}／${fmt(r.week1_cohort)} 人`, true],
+    ['第二週還在寫', rate(r.week2_returned, r.week2_cohort), `開始寫後第 8–14 天有寫・${fmt(r.week2_returned)}／${fmt(r.week2_cohort)} 人`, true],
+    ['黏著度', rate(r.daily_avg7, r.writers30), `近 7 天平均每天 ${r.daily_avg7 ?? 0} 人寫 ÷ 近 30 天有寫的 ${fmt(r.writers30)} 人`, true],
+    ['正在連續 3 天以上', r.streak3, '', false],
+    ['沉睡中', r.dormant, '寫過 3 天以上，但已 14 天沒寫', false],
+  ]);
   const d = s.depth;
   hbars(
     $('chart-depth'),

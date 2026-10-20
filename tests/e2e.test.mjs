@@ -1219,6 +1219,7 @@ const ADMIN_STATS = {
   writing: { entry_days: 812, wins: 2650, thanks: 640, reflections: 210, boards: 22, today_writers: 9 },
   features: { thanks: 25, reflections: 14, boards: 17 },
   depth: { none: 3, d1: 8, d2_6: 12, d7_29: 11, d30: 6 },
+  retention: { week1_cohort: 20, week1_returned: 13, week2_cohort: 15, week2_returned: 6, daily_avg7: 7.4, writers30: 28, dormant: 4, streak3: 9 },
   weekly: Array.from({ length: 12 }, (_, i) => ({ week: new Date(Date.UTC(2026, 6, 13 + i * 7)).toISOString().slice(0, 10), writers: 6 + i, new_users: i % 4, entry_days: 30 + i * 3 })),
   daily: Array.from({ length: 30 }, (_, i) => ({ date: new Date(Date.UTC(2026, 8, 2 + i)).toISOString().slice(0, 10), writers: (i * 7) % 11, wins: i })),
 };
@@ -1246,6 +1247,15 @@ test('使用狀況頁：沒登入時請先登入；不是管理者看不到；�
   assert.match(await page.textContent('#kpi-writing'), /2,650/);
   assert.match(await page.textContent('#kpi-writing'), /平均每人 20\.3 天/);
   assert.equal(await page.locator('#chart-daily .col').count(), 30);
+  // 預設顯示最後一天；點任一天就顯示那天的數字
+  assert.equal(await page.textContent('#chart-daily .chart-readout'), '10/1（週四）今天：5 人有寫・29 件小成功');
+  await page.click('#chart-daily .col >> nth=3');
+  assert.equal(await page.textContent('#chart-daily .chart-readout'), '9/5（週六）：10 人有寫・3 件小成功');
+  assert.equal(await page.getAttribute('#chart-daily .col >> nth=3', 'aria-pressed'), 'true');
+  await page.click('#chart-writers .col >> nth=0');
+  assert.equal(await page.textContent('#chart-writers .chart-readout'), '7/13–7/19 那週：6 人有寫・共 30 篇');
+  // 留存
+  assert.deepEqual(await page.locator('#kpi-retention .kpi-value').allTextContents(), ['65%', '40%', '26%', '9', '4']);
   assert.equal(await page.locator('#chart-writers .col').count(), 12);
   assert.match(await page.textContent('#chart-depth'), /30 天以上6・15%/);
   if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '99-admin.png'), fullPage: true });
