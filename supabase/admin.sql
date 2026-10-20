@@ -61,6 +61,12 @@ begin
     left join entries e on e.user_id = u.user_id
     group by u.user_id, u.first_at, u.last_at
   ),
+  writers as (
+    -- 以「有寫日記的日子」來看每個人：第一次寫、最近一次寫、總共寫了幾天
+    select user_id, min(day) as first_day, max(day) as last_day, count(*) as days
+    from entries
+    group by user_id
+  ),
   weeks as (
     select generate_series(
       date_trunc('week', today - 7 * 11)::date,
@@ -108,6 +114,27 @@ begin
         left join auth.users au on au.id = u.user_id
         group by 1
       ) x
+    ),
+    'retention', jsonb_build_object(
+      -- 第一週：第一次寫之後的第 2–7 天內，有沒有再回來寫（只看 7–60 天前開始寫的人）
+      'week1_cohort', (select count(*) from writers w where w.first_day between today - 60 and today - 7),
+      'week1_returned', (select count(*) from writers w where w.first_day between today - 60 and today - 7
+        and exists (select 1 from entries e where e.user_id = w.user_id and e.day between w.first_day + 1 and w.first_day + 6)),
+      -- 第二週：第一次寫之後的第 8–14 天內，還有沒有在寫（只看 14–90 天前開始寫的人）
+      'week2_cohort', (select count(*) from writers w where w.first_day between today - 90 and today - 14),
+      'week2_returned', (select count(*) from writers w where w.first_day between today - 90 and today - 14
+        and exists (select 1 from entries e where e.user_id = w.user_id and e.day between w.first_day + 7 and w.first_day + 13)),
+      -- 黏著度：近 7 天平均每天有寫的人數 ÷ 近 30 天有寫過的人數
+      'daily_avg7', (select round(count(*)::numeric / 7, 1) from (select distinct user_id, day from entries where day between today - 6 and today) x),
+      'writers30', (select count(distinct user_id) from entries where day between today - 29 and today),
+      -- 沉睡中：曾經寫過 3 天以上，但已經 14 天沒寫
+      'dormant', (select count(*) from writers w where w.days >= 3 and w.last_day < today - 14),
+      -- 正在連續：昨天或今天有寫，而且至少連續 3 天
+      'streak3', (
+        select count(*) from writers w
+        where w.last_day >= today - 1
+          and (select count(distinct e.day) from entries e where e.user_id = w.user_id and e.day between w.last_day - 2 and w.last_day) = 3
+      )
     ),
     'weekly', (
       select coalesce(jsonb_agg(jsonb_build_object(
