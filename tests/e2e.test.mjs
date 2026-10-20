@@ -1370,3 +1370,61 @@ test('設定頁：問題回報信帶好版本與裝置資訊；開發者 Instagr
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('匿名使用統計：記下含 UTM 的第一頁、切換分頁、開始寫、分享；可以在設定關閉；不傳任何日記內容', async () => {
+  const { context, page, errors } = await newPage();
+  await context.route('https://www.googletagmanager.com/**', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'text/javascript' }, body: '' }));
+  await page.evaluate(() => localStorage.setItem('success-journal.ga-debug', '1'));
+  await page.goto(`${origin}${BASE}?utm_source=success_journal&utm_medium=invite_card&utm_campaign=friend_referral`);
+  await page.waitForFunction(() => Array.isArray(window.dataLayer));
+  const events = () =>
+    page.evaluate(() => window.dataLayer.map((a) => Array.from(a)).filter((a) => a[0] === 'event').map((a) => [a[1], a[2]]));
+
+  let ev = await events();
+  assert.equal(ev[0][0], 'page_view');
+  assert.match(ev[0][1].page_location, /utm_medium=invite_card/, '第一頁帶著 UTM');
+  assert.equal(await page.evaluate(() => location.search), '', '網址上的 UTM 已拿掉');
+  const config = await page.evaluate(() => window.dataLayer.map((a) => Array.from(a)).find((a) => a[0] === 'config'));
+  assert.equal(config[1], 'G-NWWGD8G5KF');
+  assert.equal(config[2].allow_google_signals, false);
+  assert.equal(await page.locator('script[src*="googletagmanager.com/gtag/js?id=G-NWWGD8G5KF"]').count(), 1);
+
+  await page.click('#tab-calendar');
+  await page.click('#tab-today');
+  await page.fill('#item-0', '我的秘密小成功');
+  await page.locator('#item-0').blur();
+  await page.fill('#item-1', '第二件');
+  await page.locator('#item-1').blur();
+  await page.click('#share-day');
+  await page.waitForSelector('#share-img:not([hidden])');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.click('#share-copy');
+  await page.click('#share-cancel');
+  ev = await events();
+  const names = ev.map((e) => e[0]);
+  assert.deepEqual(ev.filter((e) => e[0] === 'page_view').slice(1).map((e) => e[1].page_location.split('?')[1]), ['view=calendar', 'view=today']);
+  assert.equal(names.filter((n) => n === 'write_entry').length, 1, '同一天只記一次開始寫');
+  assert.deepEqual(ev.find((e) => e[0] === 'share')[1], { method: 'copy_link', content_type: 'day_card' });
+  assert.doesNotMatch(JSON.stringify(ev), /秘密/, '不傳日記內容');
+
+  // 設定頁關閉
+  await page.click('#tab-data');
+  assert.equal(await page.isChecked('#setting-analytics'), true);
+  await page.click('label:has(#setting-analytics)');
+  assert.equal(await page.evaluate(() => window['ga-disable-G-NWWGD8G5KF']), true);
+  const before = (await events()).length;
+  await page.click('#tab-today');
+  assert.equal((await events()).length, before, '關閉後不再記錄');
+  await page.reload();
+  assert.equal(await page.evaluate(() => window['ga-disable-G-NWWGD8G5KF']), true, '重新整理後仍是關閉');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('匿名使用統計：不是正式網址時不載入 GA', async () => {
+  const { context, page, errors } = await newPage();
+  assert.equal(await page.evaluate(() => typeof window.gtag), 'undefined');
+  assert.equal(await page.locator('script[src*="googletagmanager"]').count(), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
