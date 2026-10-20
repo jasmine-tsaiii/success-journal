@@ -44,6 +44,7 @@ import { isStorageAvailable, loadEntries, loadSettings, loadTagList, loadThanksL
 import { initBoards } from './board-ui.js';
 import { canvasToBlob, renderDayCard, renderInviteCard, renderThanksCard, shareBackup, shareOrDownload } from './share.js';
 import { parseRef, shareLink, stripUtm } from './ref.js';
+import { initAnalytics, setAnalyticsAllowed, track, trackView } from './analytics.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
@@ -368,7 +369,12 @@ function showView(name, { updateHash = true } = {}) {
   }
   if (updateHash && location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
   window.scrollTo({ top: 0 });
+  trackView(name, firstHref);
+  firstHref = null;
 }
+
+/** 剛打開時的完整網址（含 UTM），第一次記錄分頁瀏覽時使用 */
+let firstHref = null;
 
 /* ---------- 今日 ---------- */
 
@@ -463,6 +469,7 @@ function flushSave() {
   if (!state.dirty) return;
   state.dirty = false;
   const key = state.date;
+  const hadRecord = Boolean(state.entries[key]);
   const items = cleanItems(textareas.map((ta) => ta.value));
   const answer = $('prompt-answer').value;
   const reflection = answer.trim() ? { q: chakraForDate(key).prompt, a: answer } : null;
@@ -489,6 +496,8 @@ function flushSave() {
   if (persist()) {
     setSaveStatus(state.entries[key] ? savedText(state.entries[key].updatedAt) : '已清空這一天的紀錄');
   }
+  // 這一天開始有紀錄（只記有沒有寫，不傳內容）
+  if (!hadRecord && state.entries[key]) track('write_entry', { day: key === todayKey() ? 'today' : 'other' });
 }
 
 /* ---------- 標籤（今日頁） ---------- */
@@ -1133,11 +1142,11 @@ function closeShare() {
 }
 
 /** 先顯示卡片預覽，確認後才分享或存圖。link 有值時可以另外複製邀請文字與連結 */
-async function openShareSheet({ render, alt, filename, title, text = '', link = '', done, returnFocus, square = false }) {
+async function openShareSheet({ render, alt, filename, title, text = '', link = '', done, returnFocus, square = false, kind = 'card' }) {
   const img = $('share-img');
   img.hidden = true;
   img.alt = alt;
-  shareJob = { filename, title, text, link, done, returnFocus };
+  shareJob = { filename, title, text, link, done, returnFocus, kind };
   const job = shareJob;
   document.querySelector('.share-frame').classList.toggle('square', square);
   $('share-loading').hidden = false;
@@ -1176,6 +1185,7 @@ async function confirmShare() {
   const message = [job.text, job.link].filter(Boolean).join('\n');
   const result = await shareOrDownload(shareBlob, job.filename, job.title, message);
   if (result === 'cancelled') return;
+  track('share', { method: result === 'shared' ? 'share_sheet' : 'download', content_type: job.kind });
   closeShare();
   if (result === 'downloaded') {
     // 電腦上：存下圖片，同時把邀請文字與連結複製起來，方便貼到 LINE
@@ -1187,6 +1197,7 @@ async function confirmShare() {
 async function copyShareLink() {
   if (!shareJob?.link) return;
   const ok = await copyText([shareJob.text, shareJob.link].filter(Boolean).join('\n'));
+  if (ok) track('share', { method: 'copy_link', content_type: shareJob.kind });
   toast(ok ? '已複製邀請文字與連結，貼到 LINE 就能傳給朋友' : shareJob.link);
 }
 
@@ -1200,6 +1211,7 @@ function shareToday() {
     title: '今天的小成功',
     text: '我用「成功日記」記下今天的小成功 ✨',
     link: shareLink('day_card'),
+    kind: 'day_card',
     done: '已存下今天的小成功卡片',
     returnFocus: $('share-day'),
     render: () =>
@@ -1228,6 +1240,7 @@ function shareThanks(i) {
     title: '謝謝你',
     text: '想跟你說聲謝謝 ♡',
     link: shareLink('thanks_card'),
+    kind: 'thanks_card',
     done: '已存下感謝卡',
     returnFocus: $(`thanks-send-${i}`),
     square: true,
@@ -1246,6 +1259,7 @@ function shareInvite(e) {
     title: '一起來寫成功日記',
     text: '我在用「成功日記」每天寫下三件小成功，拿起手機就能記錄，邀請你一起來寫 🌱',
     link: shareLink('invite_card'),
+    kind: 'invite_card',
     done: '已存下邀請卡',
     returnFocus: e?.currentTarget,
     square: true,
@@ -1511,6 +1525,15 @@ function bindSettings() {
   applyTheme(theme);
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(state.settings.theme || 'auto'));
 
+  const stats = $('setting-analytics');
+  stats.checked = state.settings.analytics !== false;
+  stats.addEventListener('change', () => {
+    state.settings = { ...state.settings, analytics: stats.checked };
+    saveSettings(state.settings);
+    setAnalyticsAllowed(stats.checked);
+    toast(stats.checked ? '謝謝你幫忙改善成功日記' : '已關閉匿名使用統計');
+  });
+
   const box = $('setting-chakra');
   box.checked = state.settings.showChakra;
   box.addEventListener('change', () => {
@@ -1623,6 +1646,7 @@ async function afterSignIn(session) {
   else setDisplayName(displayName() || session.user.name || '');
   toast(`已登入 ${session.user.email}，正在同步⋯⋯`);
   pushRef();
+  track('login', { method: 'Google' });
   renderCloud();
   updateBackupNudge();
   await sync.syncNow();
@@ -1812,6 +1836,8 @@ function bindBackupAndShare() {
 }
 
 function init() {
+  firstHref = location.href; // 先記下含 UTM 的網址，再把 UTM 從網址拿掉
+  initAnalytics(state.settings.analytics !== false);
   captureRef();
   bind();
   bindBackupAndShare();

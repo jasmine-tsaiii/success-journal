@@ -8,3 +8,7 @@ export const GOOGLE_CLIENT_ID = '571596263240-sdtjlec13se738hrhcbckrk10eqsmaci.a
 // 問題回報的信箱，與開發者的 Instagram 帳號（不含 @；空字串表示不顯示）
 export const FEEDBACK_EMAIL = 'hello@jas-soul.com';
 export const DEVELOPER_IG = 'jas.soulcareer';
+
+// Google Analytics 4 評估 ID（公開值）；只在正式網址載入
+export const GA_MEASUREMENT_ID = 'G-NWWGD8G5KF';
+export const GA_HOST = 'success.jas-soul.com';
