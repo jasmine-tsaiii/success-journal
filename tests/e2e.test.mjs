@@ -1332,3 +1332,24 @@ test('感謝卡與邀請卡：先預覽、可複製連結；朋友從分享連�
   assert.deepEqual(friend.errors, []);
   await friend.context.close();
 });
+
+test('設定頁：問題回報信帶好版本與裝置資訊；開發者 Instagram 連結', async () => {
+  const { context, page, errors } = await newPage();
+  await page.click('#tab-data');
+  const mail = await page.getAttribute('#feedback-link', 'href');
+  assert.match(mail, /^mailto:hello@jas-soul\.com\?subject=/);
+  const body = decodeURIComponent(mail.split('body=')[1]);
+  assert.match(body, /版本：v\d+/);
+  assert.match(body, /登入：否/);
+  assert.equal(await page.isVisible('#developer-ig'), true);
+  assert.equal(await page.getAttribute('#developer-ig', 'href'), 'https://www.instagram.com/jas.soulcareer/');
+  assert.equal(await page.getAttribute('#developer-ig', 'target'), '_blank');
+  assert.equal(await page.textContent('#developer-ig-handle'), 'Instagram @jas.soulcareer');
+  assert.match(await page.textContent('#app-version'), /^成功日記 v\d+$/);
+  if (SCREENSHOT_DIR) {
+    await page.locator('#app-version').scrollIntoViewIfNeeded();
+    await page.locator('#feedback-link').locator('..').screenshot({ path: join(SCREENSHOT_DIR, '64-settings-about.png') });
+  }
+  assert.deepEqual(errors, []);
+  await context.close();
+});

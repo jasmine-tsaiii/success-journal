@@ -2738,3 +2738,14 @@ label.set-row {
 .share-actions:has(#share-copy:not([hidden])) .btn {
   letter-spacing: 0.06em;
 }
+
+.app-version {
+  text-align: center;
+  margin-top: 18px;
+  font-family: var(--latin);
+  letter-spacing: 0.1em;
+}
+
+a.set-row[hidden] {
+  display: none;
+}

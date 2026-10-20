@@ -49,6 +49,7 @@ import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
 import { initSync } from './sync.js';
 import { APP_VERSION } from './version.js';
+import { DEVELOPER_IG, FEEDBACK_EMAIL } from './config.js';
 
 // 告訴 index.html：這次載入的程式是哪一版（用來發現「新頁面配舊程式」）
 window.__SJ_APP = APP_VERSION;
@@ -1701,6 +1702,39 @@ async function pushRef() {
   }
 }
 
+/* ---------- 問題回報與開發者 ---------- */
+
+/** 問題回報信：先帶好版本與裝置資訊，方便查問題（不含任何日記內容） */
+function feedbackMailto() {
+  const ua = navigator.userAgent;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const body = [
+    '想回報的問題或建議：',
+    '',
+    '',
+    '',
+    '（以下資訊可以幫助我找出問題，不需要修改）',
+    `版本：${APP_VERSION}`,
+    `開啟方式：${standalone ? '主畫面' : '瀏覽器'}`,
+    `登入：${cloud.getSession() ? '是' : '否'}`,
+    `裝置：${ua}`,
+  ].join('\n');
+  return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('成功日記 問題回報')}&body=${encodeURIComponent(body)}`;
+}
+
+function bindAbout() {
+  const link = $('feedback-link');
+  link.href = feedbackMailto();
+  link.addEventListener('click', () => (link.href = feedbackMailto()));
+  const ig = String(DEVELOPER_IG || '').replace(/^@/, '').trim();
+  if (ig) {
+    $('developer-ig').href = `https://www.instagram.com/${encodeURIComponent(ig)}/`;
+    $('developer-ig-handle').textContent = `Instagram @${ig}`;
+    $('developer-ig').hidden = false;
+  }
+  $('app-version').textContent = `成功日記 ${APP_VERSION}`;
+}
+
 /* ---------- 稱呼 ---------- */
 
 const displayName = () => (state.settings.displayName || '').trim();
@@ -1794,6 +1828,7 @@ function init() {
   bindCloud();
   bindDisplayName();
   bindJar();
+  bindAbout();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }
