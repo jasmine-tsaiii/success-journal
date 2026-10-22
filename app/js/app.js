@@ -1962,7 +1962,7 @@ function shareCourage() {
     kind: 'courage_card',
     done: '已存下成果卡',
     square: true,
-    render: () => renderCourageCard({ days: p.days, brave: p.brave, no: p.no, yes: p.yes, name: displayName(), color: chakra.color }),
+    render: () => renderCourageCard({ days: p.days, brave: p.brave, no: p.no, yes: p.yes, pending: p.pending, name: displayName(), color: chakra.color }),
   });
 }
 
