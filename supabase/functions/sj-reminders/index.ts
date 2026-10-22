@@ -1,5 +1,6 @@
 // 成功日記：每日提醒的發送程式（Supabase Edge Function）
 // 每 15 分鐘由排程呼叫一次：找出現在該提醒、今天還沒寫的人，送出網頁推播。
+// 整個程式都在這一個檔案裡，在 Supabase 後台的編輯器貼上這一個檔案就可以 Deploy。
 //
 // 需要的密鑰（Supabase 後台 → Edge Functions → Secrets）：
 //   VAPID_PUBLIC_KEY、VAPID_PRIVATE_KEY：推播用的金鑰（公開的那把也放在 app/js/config.js）
@@ -8,7 +9,32 @@
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
-import { reminderMessage } from './messages.js';
+
+/* ---------- 通知文字（每天輪替）。想改文字，改這裡就好 ---------- */
+
+const TITLE = '成功日記';
+
+const MESSAGES = [
+  '今天辛苦了 🌙 花一分鐘，寫下今天做到的三件小事吧。',
+  '今天有什麼小成功？再小的事都算數 🌱',
+  '準時起床、好好吃飯，也都是一種成功。來記下今天的吧。',
+  '睡前三件小成功，讓今天好好收尾 ✨',
+  '今天，有誰讓你想說聲謝謝嗎？ ♡',
+  '你的成功日記在等你，今天的你做到了什麼？',
+  '對自己溫柔一點，今天也值得被記下來。',
+];
+
+/** 點通知打開的網址（帶 UTM，GA 看得到是從提醒來的） */
+const OPEN_URL = 'https://success.jas-soul.com/?utm_source=success_journal&utm_medium=push&utm_campaign=daily_reminder#today';
+
+/** streak：到昨天為止連續寫了幾天（有登入才知道）；day_index：一年中的第幾天，用來每天換一句 */
+function reminderMessage({ streak = 0, day_index: dayIndex = 0 }: { streak?: number; day_index?: number }) {
+  const n = MESSAGES.length;
+  const body = streak >= 3 ? `已經連續 ${streak} 天了 ✨ 今天也記一下，讓好習慣接下去。` : MESSAGES[((dayIndex % n) + n) % n];
+  return { title: TITLE, body, url: OPEN_URL };
+}
+
+/* ---------- 發送 ---------- */
 
 const env = (k: string) => Deno.env.get(k) ?? '';
 

@@ -13,8 +13,7 @@ Supabase 後台 → **Database → Extensions**，搜尋並開啟：
 ## 3. 建立發送提醒的程式（Edge Function）
 1. **Edge Functions → Deploy a new function → Via Editor**。
 2. 名稱填 `sj-reminders`。
-3. 把 `supabase/functions/sj-reminders/index.ts` 的內容貼到 `index.ts`；
-   再新增一個檔案 `messages.js`，貼上 `supabase/functions/sj-reminders/messages.js` 的內容。
+3. 把編輯器裡原本的內容全部刪掉，貼上 `supabase/functions/sj-reminders/index.ts` 的全部內容（整個程式只有這一個檔案）。
 4. **Deploy**。
 5. 進到這個 function 的 **Details / Settings**，把 **Verify JWT（Enforce JWT verification）關閉**
    （這個程式用自己的暗號 `CRON_SECRET` 保護）。
@@ -49,4 +48,4 @@ select cron.schedule(
 - 在手機開啟提醒、把時間設成接下來 15 分鐘內，不要寫當天的日記，等通知出現。
 
 ## 之後想改通知文字
-改 `supabase/functions/sj-reminders/messages.js`，再到 Edge Functions 把 `messages.js` 更新並重新 Deploy。
+改 `supabase/functions/sj-reminders/index.ts` 最上面的 `MESSAGES`，再到 Edge Functions 貼上新的內容、重新 Deploy。
