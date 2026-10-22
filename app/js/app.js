@@ -42,10 +42,23 @@ import {
 } from './core.js';
 import { isStorageAvailable, loadEntries, loadSettings, loadTagList, loadThanksList, requestPersistence, saveEntries, saveSettings, saveTagList, saveThanksList } from './storage.js';
 import { initBoards } from './board-ui.js';
-import { canvasToBlob, renderDayCard, renderInviteCard, renderThanksCard, shareBackup, shareOrDownload } from './share.js';
+import { canvasToBlob, renderCourageCard, renderDayCard, renderInviteCard, renderThanksCard, shareBackup, shareOrDownload } from './share.js';
 import { parseRef, shareLink, stripUtm } from './ref.js';
 import { initAnalytics, setAnalyticsAllowed, setUserProperties, track, trackView } from './analytics.js';
 import { detectPlatform, externalBrowserUrl, installNudge } from './install-core.js';
+import {
+  CHALLENGE_DAYS,
+  CHALLENGE_TARGETS,
+  IDEA_LEVELS,
+  OUTCOMES,
+  OUTCOME_ICON,
+  OUTCOME_LABEL,
+  challengeProgress,
+  cleanChallenge,
+  cleanCourage,
+  comfortLine,
+  pickIdea,
+} from './courage-core.js';
 import { DEFAULT_TIME, REMINDER_TIMES, disableReminder, enableReminder, markWritten, permission, pushSupport } from './reminders.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
@@ -70,6 +83,7 @@ const state = {
   tagList: loadTagList(DEFAULT_TAGS),
   thanksList: loadThanksList(THANKS_TO),
   dayTags: cleanTags(),
+  dayCourage: [], // 每一件小成功的「勇敢一步」（對應 items）
   thanksTo: [[]],
   period: 'month',
   tagOpen: null, // 成功類型中展開明細的標籤
@@ -414,6 +428,8 @@ function renderToday() {
     autoGrow(ta);
   });
   state.dayTags = cleanTags(state.entries[key]?.tags, items.length);
+  state.dayCourage = cleanCourage(state.entries[key]?.courage, items.length) || [];
+  renderCourageBar();
   const thanks = cleanThanks(state.entries[key]?.gratitude);
   setThanksCount(thanks.length);
   thanksAreas.forEach((ta, i) => {
@@ -485,6 +501,7 @@ function flushSave() {
       ...(reflection ? { reflection } : {}),
       ...(hasThanks ? { gratitude, gratitudeTo: cleanThanksTo(state.thanksTo, gratitude.length) } : {}),
       tags: cleanTags(state.dayTags, items.length),
+      ...(cleanCourage(state.dayCourage, items.length) ? { courage: cleanCourage(state.dayCourage, items.length) } : {}),
       updatedAt: new Date().toISOString(),
     };
     // 文字裡新的 #標籤 自動加入標籤清單
@@ -610,8 +627,10 @@ function renderTagRows() {
     const writing = activeRow === i;
     row.closest('li').classList.toggle('writing', writing);
 
+    const brave = courageEnabled() && state.dayCourage[i];
     if (!writing) {
       // 沒在寫的那幾件：已選的標籤以小字顯示，不搶版面
+      if (brave) row.appendChild(courageBadge(brave));
       if (picked.length) {
         const list = document.createElement('span');
         list.className = 'tag-list';
@@ -625,6 +644,7 @@ function renderTagRows() {
     strip.className = 'tag-strip';
     strip.setAttribute('role', 'group');
     strip.setAttribute('aria-label', '標籤（選填）');
+    if (courageEnabled()) strip.appendChild(courageChip(i));
     const tags = [...new Set([...picked, ...state.tagList])];
     for (const tag of tags) strip.appendChild(tagChip(i, tag));
     strip.appendChild(customChip(i, strip));
@@ -708,6 +728,7 @@ function renderStats() {
   $('stat-thanks').textContent = `♡ 累積感謝 ${t.total} 次${t.top ? `・最常感謝的是${t.top.who}（${t.top.count} 次）` : ''}`;
   renderTagReport();
   renderJar();
+  renderCouragePanel();
 }
 
 /* ---------- 感恩抽屜 ---------- */
@@ -1643,6 +1664,368 @@ function bindInstall() {
   detectInstall();
 }
 
+/* ---------- 勇氣練習 ---------- */
+
+const courageEnabled = () => Boolean(state.settings.courage);
+const currentChallenge = () => cleanChallenge(state.settings.challenge);
+const progressNow = () => challengeProgress(state.entries, currentChallenge(), todayKey());
+
+function setChallenge(c, { fromSync = false } = {}) {
+  const clean = cleanChallenge(c);
+  state.settings = { ...state.settings, challenge: clean };
+  // 別台裝置開始了挑戰：這台也打開勇氣練習
+  if (fromSync && clean && state.settings.courage === undefined) state.settings.courage = true;
+  saveSettings(state.settings);
+  if (!fromSync) window.dispatchEvent(new Event('sj:changed'));
+  renderCourageBar();
+  renderCouragePanel();
+}
+
+/** 標籤列最前面的「勇敢一步」：點了打開結果視窗；標過的直接顯示結果 */
+function courageChip(i) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  const c = state.dayCourage[i];
+  b.className = `tag-chip courage-chip${c ? ' on' : ''}`;
+  b.setAttribute('aria-pressed', String(Boolean(c)));
+  b.textContent = c ? `勇敢一步・${OUTCOME_LABEL[c.outcome]}` : '勇敢一步';
+  b.addEventListener('click', () => {
+    if (!state.dayCourage[i]) {
+      state.dayCourage[i] = { outcome: 'pending', fear: '', next: '' };
+      state.dirty = true;
+      flushSave();
+      renderTagRows();
+      renderCourageBar();
+      track('courage_mark', { outcome: 'pending' });
+    }
+    openBrave(i);
+  });
+  return b;
+}
+
+/** 沒在寫的那幾件：小字顯示「勇敢一步・被拒絕」 */
+function courageBadge(c) {
+  const span = document.createElement('span');
+  span.className = `courage-badge is-${c.outcome}`;
+  span.textContent = `勇敢一步・${OUTCOME_LABEL[c.outcome]}`;
+  return span;
+}
+
+/* 結果視窗：選結果；被拒絕時多一句鼓勵和兩個選填問題。今日頁本身不多加任何東西 */
+let braveRow = null;
+
+function openBrave(i) {
+  const c = state.dayCourage[i];
+  if (!c) return;
+  braveRow = i;
+  $('brave-item').textContent = textareas[i].value.trim();
+  document.querySelectorAll('input[name="brave-outcome"]').forEach((r) => (r.checked = r.value === c.outcome));
+  $('brave-fear').value = c.fear || '';
+  $('brave-next').value = c.next || '';
+  $('brave-comfort').textContent = comfortLine(state.date, i);
+  $('brave-no').hidden = c.outcome !== 'no';
+  $('brave-sheet').hidden = false;
+}
+
+function closeBrave() {
+  if ($('brave-sheet').hidden) return;
+  $('brave-sheet').hidden = true;
+  braveRow = null;
+  flushSave();
+  renderTagRows();
+  renderCourageBar();
+}
+
+function patchBrave(patch) {
+  if (braveRow === null || !state.dayCourage[braveRow]) return;
+  state.dayCourage[braveRow] = { ...state.dayCourage[braveRow], ...patch };
+  state.dirty = true;
+}
+
+function bindBrave() {
+  document.querySelectorAll('input[name="brave-outcome"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      patchBrave({ outcome: r.value });
+      $('brave-no').hidden = r.value !== 'no';
+      flushSave();
+      renderCourageBar();
+      track('courage_mark', { outcome: r.value });
+    }),
+  );
+  for (const key of ['fear', 'next']) {
+    const input = $(`brave-${key}`);
+    input.addEventListener('input', () => {
+      patchBrave({ [key]: input.value });
+      scheduleSave();
+    });
+  }
+  $('brave-done').addEventListener('click', closeBrave);
+  $('brave-remove').addEventListener('click', () => {
+    if (braveRow !== null) state.dayCourage[braveRow] = null;
+    state.dirty = true;
+    closeBrave();
+  });
+  $('brave-sheet').addEventListener('click', (e) => e.target === e.currentTarget && closeBrave());
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && closeBrave());
+}
+
+/** 今日頁頂端的挑戰進度條 */
+function renderCourageBar() {
+  const bar = $('courage-bar');
+  const p = courageEnabled() ? progressNow() : null;
+  // 手動結束、或結束超過 3 天：不再顯示（成果在回顧頁）
+  if (!p || (p.finished && (p.endedAt || todayKey() > addDays(p.endDate, 3)))) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  $('courage-bar-title').textContent = p.finished ? `⚡ ${p.days} 天勇氣挑戰結束了！看看成果 →` : `⚡ ${p.days} 天勇氣挑戰・第 ${p.day} 天`;
+  $('courage-bar-count').textContent = p.finished ? '' : `被拒絕 ${p.no}/${p.target}`;
+  $('courage-bar-fill').style.width = `${Math.min(100, (p.no / p.target) * 100)}%`;
+}
+
+function chipRow(values, selected, format, onPick) {
+  const row = document.createElement('div');
+  row.className = 'courage-choices';
+  for (const v of values) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `reminder-time${v === selected ? ' on' : ''}`;
+    b.setAttribute('aria-pressed', String(v === selected));
+    b.textContent = format(v);
+    b.addEventListener('click', () => onPick(v));
+    row.appendChild(b);
+  }
+  return row;
+}
+
+let startForm = { days: 30, target: 20 };
+
+/** 回顧頁最上面的挑戰面板：還沒開始→開始挑戰；進行中→進度；結束→成果 */
+function renderCouragePanel() {
+  const panel = $('courage-panel');
+  panel.hidden = !courageEnabled();
+  if (panel.hidden) return;
+  const body = $('courage-panel-body');
+  body.textContent = '';
+  const p = progressNow();
+  const h = (tag, cls, text) => {
+    const el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  };
+
+  if (!p) {
+    // 開始一個挑戰
+    const title = h('h2', 'courage-title', '開始一個勇氣挑戰');
+    title.id = 'courage-title';
+    body.append(title, h('p', 'courage-lead', '規則很簡單：每天至少勇敢一步。被拒絕也算數，而且越多越好。'));
+    const draw = () => {
+      body.querySelectorAll('.courage-form').forEach((el) => el.remove());
+      const form = h('div', 'courage-form');
+      form.append(h('p', 'courage-label', '期間'), chipRow(CHALLENGE_DAYS, startForm.days, (d) => `${d} 天`, (d) => ((startForm.days = d), draw())));
+      const targets = chipRow(CHALLENGE_TARGETS, startForm.target, (t) => `${t} 次`, (t) => ((startForm.target = t), draw()));
+      const custom = document.createElement('input');
+      custom.type = 'number';
+      custom.min = 1;
+      custom.max = 999;
+      custom.className = `reminder-custom courage-custom${CHALLENGE_TARGETS.includes(startForm.target) ? '' : ' on'}`;
+      custom.placeholder = '自訂';
+      custom.setAttribute('aria-label', '自訂被拒絕目標');
+      if (!CHALLENGE_TARGETS.includes(startForm.target)) custom.value = startForm.target;
+      custom.addEventListener('change', () => {
+        const n = Math.round(Number(custom.value));
+        if (n > 0) {
+          startForm.target = Math.min(n, 999);
+          draw();
+        }
+      });
+      targets.appendChild(custom);
+      form.append(h('p', 'courage-label', '被拒絕目標'), targets);
+      const go = h('button', 'btn btn-primary courage-start', '開始挑戰');
+      go.type = 'button';
+      go.addEventListener('click', () => {
+        setChallenge({ startDate: todayKey(), days: startForm.days, target: startForm.target });
+        track('challenge_start', { days: startForm.days, target: startForm.target });
+        toast(`開始了！接下來 ${startForm.days} 天，每天勇敢一步 ⚡`);
+      });
+      form.appendChild(go);
+      form.appendChild(h('p', 'small courage-safe', '量力而為，從小事開始就好。本功能為自我練習之用，不具治療用途。'));
+      body.appendChild(form);
+    };
+    draw();
+    return;
+  }
+
+  const title = h('h2', 'courage-title', p.finished ? `${p.days} 天勇氣挑戰完成 🎉` : `${p.days} 天勇氣挑戰`);
+  title.id = 'courage-title';
+  const head = h('div', 'courage-head');
+  head.append(title, h('span', 'courage-day', p.finished ? `${p.startDate.slice(5).replace('-', '/')}–${p.endDate.slice(5).replace('-', '/')}` : `第 ${p.day} / ${p.days} 天`));
+  body.appendChild(head);
+
+  const stats = h('div', 'courage-stats');
+  for (const [num, label, cls] of [
+    [p.brave, '勇敢', ''],
+    [`${p.no}/${p.target}`, '被拒絕', 'is-no'],
+    [p.yes, '成功', ''],
+    [p.pending, '沒回音', ''],
+  ]) {
+    const st = h('div', `courage-stat ${cls}`);
+    st.append(h('span', 'courage-stat-num', String(num)), h('span', 'courage-stat-label', label));
+    stats.appendChild(st);
+  }
+  body.appendChild(stats);
+
+  const grid = h('div', 'courage-grid');
+  grid.setAttribute('aria-label', `${p.days} 天中，有 ${p.doneDays} 天勇敢了一步`);
+  for (const c of p.cells) {
+    const cell = h('span', `courage-cell${c.done ? ' done' : ''}${c.today ? ' today' : ''}${c.future ? ' future' : ''}`);
+    cell.title = `${c.date.slice(5).replace('-', '/')}${c.done ? ' 勇敢了一步' : ''}`;
+    grid.appendChild(cell);
+  }
+  body.appendChild(grid);
+
+  if (p.finished) {
+    body.appendChild(
+      h('p', 'courage-lead', `${p.days} 天裡，你勇敢了 ${p.brave} 次，被拒絕 ${p.no} 次${p.reached ? '，達成目標！' : '。'}每一次開口，都讓下一次更容易。`),
+    );
+    const actions = h('div', 'courage-actions');
+    const share = h('button', 'btn btn-primary', '分享成果');
+    share.type = 'button';
+    share.addEventListener('click', shareCourage);
+    const again = h('button', 'btn', '開始新的挑戰');
+    again.type = 'button';
+    again.addEventListener('click', () => {
+      startForm = { days: p.days, target: p.target };
+      setChallenge(null);
+    });
+    actions.append(share, again);
+    body.appendChild(actions);
+  } else {
+    const actions = h('div', 'courage-actions');
+    const idea = h('button', 'btn btn-primary', '抽一個勇氣點子');
+    idea.type = 'button';
+    idea.addEventListener('click', openIdea);
+    actions.appendChild(idea);
+    body.appendChild(actions);
+  }
+
+  if (p.recent.length) {
+    body.appendChild(h('p', 'courage-label', '最近的勇敢一步'));
+    const ul = h('ul', 'courage-recent');
+    for (const x of p.recent) {
+      const li = h('li', `is-${x.outcome}`);
+      li.append(h('span', 'courage-recent-date', x.date.slice(5).replace('-', '/')), h('span', 'courage-recent-icon', OUTCOME_ICON[x.outcome]));
+      const text = h('span', 'courage-recent-text', x.text);
+      if (x.fear) text.appendChild(h('span', 'courage-recent-fear', `「${x.fear}」`));
+      li.appendChild(text);
+      ul.appendChild(li);
+    }
+    body.appendChild(ul);
+  }
+
+  if (!p.finished) {
+    const end = h('button', 'text-btn courage-end', '提早結束挑戰');
+    end.type = 'button';
+    end.addEventListener('click', () => {
+      if (!window.confirm('要提早結束這個挑戰嗎？寫過的紀錄都會保留。')) return;
+      setChallenge({ ...currentChallenge(), endedAt: todayKey() });
+      track('challenge_end', { day: p.day, no: p.no });
+    });
+    body.appendChild(end);
+  } else {
+    if (!state.settings.challengeDoneTracked) {
+      state.settings = { ...state.settings, challengeDoneTracked: p.startDate };
+      saveSettings(state.settings);
+      track('challenge_done', { days: p.days, brave: p.brave, no: p.no, reached: p.reached });
+    }
+  }
+}
+
+function shareCourage() {
+  const p = progressNow();
+  if (!p) return;
+  const { chakra } = chakraForDate(todayKey());
+  openShareSheet({
+    alt: '勇氣挑戰成果卡預覽',
+    filename: `courage-challenge-${p.startDate}.png`,
+    title: '我的勇氣挑戰',
+    text: `我完成了 ${p.days} 天勇氣挑戰：勇敢 ${p.brave} 次，被拒絕 ${p.no} 次 ⚡`,
+    link: shareLink('courage_card'),
+    kind: 'courage_card',
+    done: '已存下成果卡',
+    square: true,
+    render: () => renderCourageCard({ days: p.days, brave: p.brave, no: p.no, yes: p.yes, pending: p.pending, name: displayName(), color: chakra.color }),
+  });
+}
+
+/* 勇氣點子 */
+let idea = null;
+const ideaLevel = () => Number(document.querySelector('input[name="idea-level"]:checked')?.value || 0);
+
+function drawIdea() {
+  idea = pickIdea(ideaLevel(), idea);
+  $('idea-text').textContent = idea ? idea.text : '';
+}
+
+function openIdea() {
+  drawIdea();
+  $('idea-sheet').hidden = false;
+  $('idea-use').focus({ preventScroll: true });
+  track('courage_idea', { level: IDEA_LEVELS[ideaLevel()] });
+}
+
+/** 就做這個：放進今天的第一個空白小成功，標成勇敢一步（還沒回音），寫完再補結果 */
+function useIdea() {
+  if (!idea) return;
+  $('idea-sheet').hidden = true;
+  flushSave();
+  state.date = todayKey();
+  showView('today');
+  let i = textareas.findIndex((ta) => !ta.value.trim());
+  if (i < 0) {
+    if (textareas.length >= MAX_ITEMS) {
+      toast('今天的小成功已經寫滿了');
+      return;
+    }
+    addRow();
+    state.dayTags.push([]);
+    updateAddWin();
+    i = textareas.length - 1;
+  }
+  textareas[i].value = idea.text;
+  autoGrow(textareas[i]);
+  state.dayCourage[i] = { outcome: 'pending', fear: '', next: '' };
+  state.dirty = true;
+  flushSave();
+  activeRow = i;
+  renderTagRows();
+  textareas[i].focus();
+  toast('加到今天的小成功了。做完再點「勇敢一步」補上結果');
+}
+
+function bindCourage() {
+  const box = $('setting-courage');
+  box.checked = courageEnabled();
+  box.addEventListener('change', () => {
+    state.settings = { ...state.settings, courage: box.checked };
+    saveSettings(state.settings);
+    renderTagRows();
+    renderCourageBar();
+    renderCouragePanel();
+    track(box.checked ? 'courage_on' : 'courage_off', {});
+    toast(box.checked ? '已開啟勇氣練習：寫小成功時可以標成「勇敢一步」，回顧頁可以開始挑戰' : '已關閉勇氣練習（紀錄都還在）');
+  });
+  $('courage-bar').addEventListener('click', () => showView('calendar'));
+  document.querySelectorAll('input[name="idea-level"]').forEach((r) => r.addEventListener('change', drawIdea));
+  $('idea-next').addEventListener('click', drawIdea);
+  $('idea-use').addEventListener('click', useIdea);
+  $('idea-close').addEventListener('click', () => ($('idea-sheet').hidden = true));
+  $('idea-sheet').addEventListener('click', (e) => e.target === e.currentTarget && ($('idea-sheet').hidden = true));
+  bindBrave();
+}
+
 /* ---------- 每日提醒 ---------- */
 
 const reminderState = () => state.settings.reminder || {};
@@ -1875,7 +2258,7 @@ function bindTags() {
   // 不然標籤列一收起，按鈕會往上跳，手指就點不到了
   document.addEventListener('click', (e) => {
     // 被點的元素已經換掉（例如「＋ 自訂」變成輸入框）時也不收起
-    if (activeRow === null || !e.target.isConnected || e.target.closest('.win-list li, #add-win')) return;
+    if (activeRow === null || !e.target.isConnected || e.target.closest('.win-list li, #add-win, .share-sheet')) return;
     activeRow = null;
     renderTagRows();
   });
@@ -1968,6 +2351,8 @@ const sync = initSync({
     boards.setBoards(list);
     if (!$('view-dreams').hidden) boards.show();
   },
+  getChallenge: () => currentChallenge(),
+  setChallenge: (c) => setChallenge(c, { fromSync: true }),
   getThanksList: () => state.thanksList,
   setThanksList(list) {
     state.thanksList = list;
@@ -2273,6 +2658,7 @@ function init() {
   bindAbout();
   bindInstall();
   bindReminders();
+  bindCourage();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }

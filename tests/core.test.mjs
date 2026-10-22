@@ -320,3 +320,12 @@ test('感謝對象清單：清理名稱、去重複；備份含清單', async ()
   assert.deepEqual(parseBackup(JSON.stringify(backup)).thanksList, ['媽媽', '室友']);
   assert.equal(parseBackup(JSON.stringify(buildBackup({}))).thanksList, null, '舊備份沒有清單');
 });
+
+test('備份：保留勇敢一步的紀錄', async () => {
+  const { parseBackup } = await import('../app/js/core.js');
+  const data = { app: 'success-journal', version: 2, entries: { '2026-10-01': { items: ['問主管新專案', '散步', ''], courage: [{ outcome: 'no', fear: '怕被拒絕' }, null] } } };
+  const { entries } = parseBackup(JSON.stringify(data));
+  assert.deepEqual(entries['2026-10-01'].courage, [{ outcome: 'no', fear: '怕被拒絕', next: '' }, null, null]);
+  const plain = parseBackup(JSON.stringify({ ...data, entries: { '2026-10-01': { items: ['a'] } } })).entries['2026-10-01'];
+  assert.equal('courage' in plain, false);
+});

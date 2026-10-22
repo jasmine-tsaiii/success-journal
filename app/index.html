@@ -41,7 +41,7 @@
     // 版本檢查：頁面一定是最新的，但舊版的離線快取可能給了舊程式（畫面會少東西）。
     // 發現程式版本和頁面不同時，清掉舊快取、更新 Service Worker，重新載入一次。
     (function () {
-      var PAGE_VERSION = 'v32';
+      var PAGE_VERSION = 'v33';
       window.addEventListener('load', function () {
         if (window.__SJ_APP === PAGE_VERSION) return;
         try {
@@ -86,6 +86,14 @@
         </p>
         <p class="chakra-theme" id="chakra-theme"></p>
       </article>
+
+      <button type="button" class="courage-bar" id="courage-bar" hidden>
+        <span class="courage-bar-top">
+          <span class="courage-bar-title" id="courage-bar-title"></span>
+          <span class="courage-bar-count" id="courage-bar-count"></span>
+        </span>
+        <span class="courage-bar-track"><span class="courage-bar-fill" id="courage-bar-fill"></span></span>
+      </button>
 
       <div class="install-bar" id="install-bar" hidden>
         <button type="button" class="install-bar-main" id="install-bar-open">
@@ -221,6 +229,11 @@
         <h1 class="mast-title">回顧</h1>
         <p class="mast-meta caps">Little Wins<br>Review</p>
       </header>
+
+      <section class="courage-panel" id="courage-panel" aria-labelledby="courage-title" hidden>
+        <p class="label-caps">Courage Challenge</p>
+        <div id="courage-panel-body"></div>
+      </section>
 
       <p class="label-caps">So Far</p>
       <div class="stats" id="stats">
@@ -373,6 +386,13 @@
           </span>
           <input type="checkbox" class="switch" id="setting-analytics">
         </label>
+        <label class="set-row">
+          <span class="set-main">
+            <span class="set-title">勇氣練習</span>
+            <span class="set-sub">寫小成功時可以標成「⚡ 勇敢一步」，回顧頁可以開始勇氣挑戰</span>
+          </span>
+          <input type="checkbox" class="switch" id="setting-courage">
+        </label>
         <div class="set-block">
           <span class="set-title">標籤</span>
           <div class="chip-row tag-manage" id="tag-manage"></div>
@@ -505,6 +525,46 @@
 
 
 
+
+  <div class="share-sheet install-sheet" id="idea-sheet" role="dialog" aria-modal="true" aria-labelledby="idea-title" hidden>
+    <div class="install-inner">
+      <p class="label-caps">Courage Idea</p>
+      <h2 class="install-title" id="idea-title">今天的勇敢一步</h2>
+      <div class="segmented idea-levels" role="radiogroup" aria-label="難度">
+        <label><input type="radio" name="idea-level" value="0" checked><span>暖身</span></label>
+        <label><input type="radio" name="idea-level" value="1"><span>進階</span></label>
+        <label><input type="radio" name="idea-level" value="2"><span>挑戰</span></label>
+      </div>
+      <p class="idea-card" id="idea-text"></p>
+      <p class="small idea-hint">量力而為，挑一件你願意試試的事。被拒絕也算數。</p>
+      <div class="install-actions">
+        <button type="button" class="btn btn-primary" id="idea-use">就做這個</button>
+        <button type="button" class="btn" id="idea-next">換一個</button>
+        <button type="button" class="text-btn" id="idea-close">關閉</button>
+      </div>
+    </div>
+  </div>
+  <div class="share-sheet install-sheet" id="brave-sheet" role="dialog" aria-modal="true" aria-labelledby="brave-title" hidden>
+    <div class="install-inner">
+      <p class="label-caps">Brave Step</p>
+      <h2 class="install-title" id="brave-title">結果怎麼樣？</h2>
+      <p class="brave-item" id="brave-item"></p>
+      <div class="segmented brave-outcomes" role="radiogroup" aria-label="結果">
+        <label><input type="radio" name="brave-outcome" value="yes"><span>成功了</span></label>
+        <label><input type="radio" name="brave-outcome" value="no"><span>被拒絕</span></label>
+        <label><input type="radio" name="brave-outcome" value="pending"><span>還沒回音</span></label>
+      </div>
+      <div class="brave-no" id="brave-no" hidden>
+        <p class="brave-cheer"><b>又勇敢了一次 💪</b><span id="brave-comfort"></span></p>
+        <label class="courage-field"><span>原本擔心的，實際上呢？</span><input type="text" id="brave-fear" maxlength="300" placeholder="選填"></label>
+        <label class="courage-field"><span>下次想怎麼調整？</span><input type="text" id="brave-next" maxlength="300" placeholder="選填"></label>
+      </div>
+      <div class="install-actions">
+        <button type="button" class="btn btn-primary" id="brave-done">好了</button>
+        <button type="button" class="text-btn" id="brave-remove">不算勇敢一步</button>
+      </div>
+    </div>
+  </div>
   <div class="share-sheet install-sheet" id="reminder-sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-title" hidden>
     <div class="install-inner">
       <p class="label-caps">Daily Reminder</p>

@@ -1656,3 +1656,125 @@ test('每日提醒：不允許通知時會說明，不會一直問', async () =>
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('勇氣練習：開啟後才出現；小成功標成勇敢一步、被拒絕有小卡；回顧頁開始挑戰、進度、抽點子；結束後可分享成果', async () => {
+  const { context, page, errors } = await newPage();
+  // 預設看不到任何勇氣相關的東西
+  await page.click('#item-0');
+  assert.equal(await page.locator('#tags-0 .courage-chip').count(), 0);
+  assert.equal(await page.isHidden('#courage-bar'), true);
+  await page.click('#tab-calendar');
+  assert.equal(await page.isHidden('#courage-panel'), true);
+
+  // 設定頁打開勇氣練習
+  await page.click('#tab-data');
+  await page.click('label:has(#setting-courage)');
+  await page.click('#tab-calendar');
+  await page.waitForSelector('#courage-panel:not([hidden])');
+  assert.equal(await page.textContent('#courage-title'), '開始一個勇氣挑戰');
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(600);
+    await page.locator('#courage-panel').screenshot({ path: join(SCREENSHOT_DIR, '82-courage-start.png') });
+  }
+  await page.click('#courage-panel .courage-choices button >> text=30 天');
+  await page.click('#courage-panel .courage-choices button >> text=20 次');
+  await page.click('#courage-panel .courage-start');
+  assert.equal(await page.textContent('#courage-title'), '30 天勇氣挑戰');
+  assert.equal(await page.locator('#courage-panel .courage-cell').count(), 30);
+
+  // 今日頁：進度條＋勇敢一步
+  await page.click('#tab-today');
+  assert.equal(await page.isVisible('#courage-bar'), true);
+  assert.match(await page.textContent('#courage-bar'), /30 天勇氣挑戰・第 1 天[\s\S]*被拒絕 0\/20/);
+  await page.fill('#item-0', '主動問主管能不能讓我負責新專案');
+  await page.click('#tags-0 .courage-chip');
+  assert.equal(await page.getAttribute('#tags-0 .courage-chip', 'aria-pressed'), 'true');
+  // 點了打開結果視窗；今日頁本身不多出任何一排
+  await page.waitForSelector('#brave-sheet:not([hidden])');
+  assert.equal(await page.textContent('#brave-item'), '主動問主管能不能讓我負責新專案');
+  assert.equal(await page.isChecked('input[name="brave-outcome"][value="pending"]'), true);
+  assert.equal(await page.isHidden('#brave-no'), true);
+  await page.click('#brave-sheet label:has(input[value="no"])');
+  assert.match(await page.textContent('#brave-no'), /又勇敢了一次 💪[\s\S]*原本擔心的，實際上呢？/);
+  await page.fill('#brave-fear', '怕被覺得太急，其實他只是說現在人手夠');
+  if (SCREENSHOT_DIR) {
+    await page.evaluate(() => document.getElementById('toast').classList.remove('show'));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '80c-brave-sheet.png'), fullPage: false });
+  }
+  await page.click('#brave-done');
+  assert.equal(await page.isHidden('#brave-sheet'), true);
+  assert.equal(await page.textContent('#tags-0 .courage-chip'), '勇敢一步・被拒絕');
+  assert.match(await page.textContent('#courage-bar'), /被拒絕 1\/20/);
+  if (SCREENSHOT_DIR) {
+    await page.evaluate(() => document.getElementById('toast').classList.remove('show'));
+    await page.waitForTimeout(400);
+    await page.locator('#courage-bar').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '80-courage-today.png'), fullPage: false });
+    await page.locator('#win-list, .win-list').first().screenshot({ path: join(SCREENSHOT_DIR, '80b-courage-win.png') });
+  }
+  // 沒在寫時顯示小字
+  await page.click('.prompt .label-caps');
+  assert.match(await page.textContent('#tags-0'), /勇敢一步・被拒絕/);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
+  assert.deepEqual(saved.courage[0], { outcome: 'no', fear: '怕被覺得太急，其實他只是說現在人手夠', next: '' });
+
+  // 回顧頁：進度與最近紀錄；抽點子 → 放進今天的小成功
+  await page.click('#tab-calendar');
+  const nums = await page.locator('#courage-panel .courage-stat-num').allTextContents();
+  assert.deepEqual(nums, ['1', '1/20', '0', '0']);
+  assert.equal(await page.locator('#courage-panel .courage-cell.done').count(), 1);
+  assert.match(await page.textContent('#courage-panel .courage-recent'), /主動問主管[\s\S]*怕被覺得太急/);
+  await page.click('#courage-panel button >> text=抽一個勇氣點子');
+  await page.waitForSelector('#idea-sheet:not([hidden])');
+  const first = await page.textContent('#idea-text');
+  assert.ok(first.length > 4);
+  await page.click('#idea-next');
+  assert.notEqual(await page.textContent('#idea-text'), first, '換一個');
+  await page.click('.idea-levels label:has-text("挑戰")');
+  const idea = await page.textContent('#idea-text');
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '83-courage-idea.png') });
+  }
+  await page.click('#idea-use');
+  assert.equal(await page.inputValue('#item-1'), idea);
+  assert.equal(await page.getAttribute('#tags-1 .courage-chip', 'aria-pressed'), 'true');
+  await page.click('.prompt .label-caps');
+  await page.click('#tab-calendar');
+  if (SCREENSHOT_DIR) {
+    await page.evaluate(() => document.getElementById('toast').classList.remove('show'));
+    await page.waitForTimeout(600);
+    await page.locator('#courage-panel').screenshot({ path: join(SCREENSHOT_DIR, '81-courage-panel.png') });
+  }
+
+  // 挑戰期間過了：成果與分享
+  await page.clock.setSystemTime(new Date('2026-11-01T09:00:00'));
+  await page.reload();
+  await page.click('#tab-calendar');
+  assert.equal(await page.textContent('#courage-title'), '30 天勇氣挑戰完成 🎉');
+  assert.match(await page.textContent('#courage-panel'), /30 天裡，你勇敢了 2 次，被拒絕 1 次/);
+  await page.click('#courage-panel button >> text=分享成果');
+  await page.waitForSelector('#share-img:not([hidden])');
+  if (SCREENSHOT_DIR) {
+    const src = await page.getAttribute('#share-img', 'src');
+    const b64 = await page.evaluate(async (u) => {
+      const b = await (await fetch(u)).blob();
+      return new Promise((r) => { const f = new FileReader(); f.onload = () => r(f.result.split(',')[1]); f.readAsDataURL(b); });
+    }, src);
+    await import('node:fs/promises').then((fs) => fs.writeFile(join(SCREENSHOT_DIR, '84-courage-card.png'), Buffer.from(b64, 'base64')));
+  }
+  await page.click('#share-cancel');
+  await page.click('#courage-panel button >> text=開始新的挑戰');
+  assert.equal(await page.textContent('#courage-title'), '開始一個勇氣挑戰');
+
+  // 關閉勇氣練習：今日頁與回顧頁都看不到（紀錄保留）
+  await page.click('#tab-data');
+  await page.click('label:has(#setting-courage)');
+  await page.click('#tab-calendar');
+  assert.equal(await page.isHidden('#courage-panel'), true);
+  await page.click('#tab-today');
+  assert.equal(await page.isHidden('#courage-bar'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
