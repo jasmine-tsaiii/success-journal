@@ -3089,6 +3089,11 @@ a.set-row[hidden] {
   display: none;
 }
 
+/* 問答和「好了」按鈕之間留白 */
+#brave-sheet .install-actions {
+  margin-top: 28px;
+}
+
 /* 鼓勵金句：淡色底＋細框，和下面的問答分開 */
 .brave-cheer {
   margin: 0 0 16px;
