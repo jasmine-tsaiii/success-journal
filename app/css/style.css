@@ -2749,3 +2749,298 @@ label.set-row {
 a.set-row[hidden] {
   display: none;
 }
+
+/* ---------- 加到主畫面 ---------- */
+.install-bar {
+  display: flex;
+  align-items: stretch;
+  margin: 22px 0 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.install-bar[hidden] {
+  display: none;
+}
+
+.install-bar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px 9px 10px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  cursor: pointer;
+}
+
+.install-bar-main b {
+  color: var(--ink);
+}
+
+.install-bar-icon img {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.install-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.install-bar-close {
+  flex: none;
+  width: 40px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.install-sheet {
+  align-items: flex-end;
+  padding: 0;
+}
+
+.install-inner {
+  width: min(100%, 520px);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 28px 22px calc(18px + var(--safe-bottom));
+  background: var(--paper);
+  border-top: 4px solid var(--accent);
+  box-shadow: var(--shadow);
+  text-align: center;
+  animation: rise 0.25s ease;
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+@media (min-width: 600px) {
+  .install-sheet {
+    align-items: center;
+    padding: 20px;
+  }
+}
+
+.install-app-icon {
+  display: block;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.14);
+}
+
+.install-title {
+  font-size: 22px;
+  letter-spacing: 0.12em;
+  margin: 6px 0 8px;
+  font-weight: 700;
+}
+
+.install-lead {
+  font-size: 14.5px;
+  line-height: 1.85;
+  color: var(--ink-2);
+  margin: 0 0 18px;
+}
+
+.install-steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0 0 14px;
+  padding: 0;
+  text-align: left;
+  border-top: 1px solid var(--rule);
+}
+
+.install-steps[hidden] {
+  display: none;
+}
+
+.install-steps li {
+  counter-increment: step;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.install-steps li::before {
+  content: counter(step, decimal-leading-zero);
+  flex: none;
+  width: 24px;
+  font-family: var(--latin);
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.install-step-icon svg {
+  display: block;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 4px;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--bg);
+  fill: none;
+  stroke: #2f7bf6;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.install-step-icon circle {
+  fill: #2f7bf6;
+  stroke: none;
+}
+
+.install-note {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--ink-2);
+  text-align: left;
+  white-space: pre-line;
+}
+
+.install-note[hidden] {
+  display: none;
+}
+
+.install-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.install-actions .btn[hidden] {
+  display: none;
+}
+
+/* ---------- 每日提醒 ---------- */
+.reminder-times {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.reminder-time {
+  border: 1.5px solid var(--rule);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--latin);
+  font-size: 15px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.reminder-time.on {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.reminder-time small {
+  display: block;
+  font-family: var(--sans, inherit);
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.reminder-custom {
+  border: 1.5px solid var(--rule);
+  background: none;
+  color: var(--ink);
+  font-family: var(--latin);
+  font-size: 15px;
+  padding: 3px 6px;
+  min-width: 92px;
+}
+
+.reminder-custom.on {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.reminder-times-big {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 14px 0 6px;
+}
+
+.reminder-times-big .reminder-time,
+.reminder-times-big .reminder-custom-wrap {
+  padding: 10px 0 8px;
+  font-size: 22px;
+  text-align: center;
+}
+
+.reminder-times-big .reminder-custom-wrap {
+  border: 1.5px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.reminder-times-big .reminder-custom-wrap.on {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.reminder-times-big .reminder-custom {
+  border: 0;
+  background: none;
+  font-size: 20px;
+  text-align: center;
+  padding: 0;
+}
+
+.reminder-hint {
+  margin: 4px 0 16px;
+}
+
+.reminder-time-row[hidden],
+#reminder-install[hidden] {
+  display: none;
+}
+
+.reminder-custom-wrap small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.set-row.reminder-time-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0 14px;
+}
+
+.reminder-time-row .reminder-times {
+  justify-content: flex-start;
+}

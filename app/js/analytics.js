@@ -64,3 +64,9 @@ export function trackView(view, href) {
   const url = href || `${location.origin}${location.pathname}?view=${encodeURIComponent(view)}`;
   track('page_view', { page_title: `成功日記・${TITLES[view] || view}`, page_location: url });
 }
+
+/** 使用者屬性（例如從主畫面還是瀏覽器打開），方便在 GA 比較 */
+export function setUserProperties(props) {
+  if (!loaded || window[disableKey()]) return;
+  window.gtag('set', 'user_properties', props);
+}

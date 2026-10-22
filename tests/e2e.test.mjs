@@ -63,8 +63,8 @@ after(async () => {
   server?.close();
 });
 
-async function newPage({ date = '2026-10-01T09:00:00', onboarding = false, cloud = null } = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true, locale: 'zh-TW' });
+async function newPage({ date = '2026-10-01T09:00:00', onboarding = false, cloud = null, userAgent } = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true, locale: 'zh-TW', ...(userAgent ? { userAgent } : {}) });
   // 測試中不連到真正的 Google 與 Supabase；需要時改用假的伺服器
   if (cloud) await cloud.attach(context);
   else await context.route(/^https:\/\/(accounts\.google\.com|[a-z0-9]+\.supabase\.co)\//, (route) => route.abort());
@@ -655,6 +655,7 @@ function fakeCloud() {
   const photos = new Map(); // path → { body, type }
   const users = new Map(); // uid → email
   const admins = new Set(); // 可以看統計的 email
+  const pushCalls = []; // 每日提醒的 API 呼叫
   let tick = Date.parse('2026-10-01T00:00:00Z');
   const nextSyncedAt = () => new Date((tick += 1000)).toISOString().replace('Z', '+00:00');
   const cors = {
@@ -699,6 +700,10 @@ function fakeCloud() {
       return users.has(id) ? json(route, 200, session(users.get(id))) : json(route, 400, { msg: 'invalid refresh token' });
     }
     if (path === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
+    if (path.startsWith('/rest/v1/rpc/sj_push_')) {
+      pushCalls.push({ name: path.split('/').pop(), args: req.postDataJSON(), uid: uidOf(req) || null });
+      return route.fulfill({ status: 204, headers: cors });
+    }
     const uid = uidOf(req);
     if (!users.has(uid)) return json(route, 401, { message: 'JWT expired' });
     if (path === '/auth/v1/user') {
@@ -766,6 +771,7 @@ function fakeCloud() {
     users,
     meta,
     admins,
+    pushCalls,
     async attach(context) {
       await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'text/javascript' }, body: gsi }));
       await context.route(/^https:\/\/[a-z0-9]+\.supabase\.co\//, handle);
@@ -1425,6 +1431,228 @@ test('匿名使用統計：不是正式網址時不載入 GA', async () => {
   const { context, page, errors } = await newPage();
   assert.equal(await page.evaluate(() => typeof window.gtag), 'undefined');
   assert.equal(await page.locator('script[src*="googletagmanager"]').count(), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+const IPHONE_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
+const IPHONE_LINE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/14.5.0';
+
+test('加到主畫面：第一天寫完跳出步驟；隔天打開有小提醒；按「我加好了」之後不再提醒', async () => {
+  const { context, page, errors } = await newPage({ userAgent: IPHONE_SAFARI });
+  assert.equal(await page.isHidden('#install-bar'), true, '還沒寫之前不提醒');
+  assert.equal(await page.isVisible('#login-bar'), true);
+
+  // 寫第一天：寫字時不打斷，停下來之後才出現
+  await page.fill('#item-0', '早上喝了一杯溫水');
+  await page.waitForTimeout(1500);
+  assert.equal(await page.isHidden('#install-sheet'), true, '還在輸入框裡時不跳出');
+  await page.click('.prompt .label-caps');
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  assert.equal(await page.textContent('#install-title'), '第一天寫好了！');
+  assert.equal(await page.locator('#install-steps li').count(), 3);
+  assert.match(await page.textContent('#install-steps'), /分享[\s\S]*加入主畫面[\s\S]*加入/);
+  assert.match(await page.textContent('#install-note'), /先到「設定」用 Google 登入/, '沒登入時提醒 iPhone 資料分開');
+  assert.equal(await page.textContent('#install-secondary'), '先去登入');
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '70-install-first-day.png') });
+  }
+  await page.click('#install-later');
+  assert.equal(await page.isHidden('#install-sheet'), true);
+  let install = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).install);
+  assert.deepEqual([install.shows, install.shownDay], [1, '2026-10-01']);
+
+  // 第二件寫完不會再跳
+  await page.fill('#item-1', '完成報告');
+  await page.click('.prompt .label-caps');
+  await page.waitForTimeout(1500);
+  assert.equal(await page.isHidden('#install-sheet'), true);
+
+  // 同一天重新打開：不提醒；隔天打開：今日頁上方小提醒（登入提醒先讓位）
+  await page.reload();
+  assert.equal(await page.isHidden('#install-bar'), true);
+  await page.clock.setSystemTime(new Date('2026-10-02T09:00:00'));
+  await page.reload();
+  await page.waitForSelector('#install-bar:not([hidden])');
+  assert.equal(await page.isHidden('#login-bar'), true, '兩個提醒不同時出現');
+  if (SCREENSHOT_DIR) await page.locator('.day-card').evaluate((el) => el.scrollIntoView());
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '71-install-bar.png') });
+  await page.click('#install-bar-open');
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  assert.equal(await page.textContent('#install-title'), '把成功日記放到主畫面');
+  await page.click('#install-primary'); // 我加好了
+  assert.equal(await page.isHidden('#install-sheet'), true);
+  assert.equal(await page.isHidden('#install-bar'), true);
+  assert.equal(await page.isVisible('#login-bar'), true, '加好之後換登入提醒出現');
+  install = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).install);
+  assert.equal(install.done, true);
+
+  // 之後幾天都不再提醒；設定頁仍可以看步驟
+  await page.clock.setSystemTime(new Date('2026-10-09T09:00:00'));
+  await page.reload();
+  assert.equal(await page.isHidden('#install-bar'), true);
+  await page.click('#tab-data');
+  await page.click('#install-btn');
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  await page.click('#install-later');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('加到主畫面：在 LINE 裡打開時，一進來就引導用手機瀏覽器打開（保留 UTM），也可以複製網址', async () => {
+  const { context, page, errors } = await newPage({ userAgent: IPHONE_LINE });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // 第一次打開就出現引導
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  // 模擬朋友從感謝卡連結第一次進來（清掉剛才的提醒紀錄）
+  await page.evaluate(() => {
+    const k = 'success-journal.settings.v1';
+    const st = JSON.parse(localStorage.getItem(k) || '{}');
+    delete st.install;
+    localStorage.setItem(k, JSON.stringify(st));
+  });
+  await page.goto(`${origin}${BASE}?utm_source=success_journal&utm_medium=thanks_card&utm_campaign=friend_referral`);
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  assert.equal(await page.textContent('#install-title'), '用手機的瀏覽器打開');
+  assert.match(await page.textContent('#install-lead'), /你現在是在 LINE 裡面打開的。在這裡寫的日記只會留在 LINE 裡/);
+  assert.equal(await page.textContent('#install-primary'), '用瀏覽器打開');
+  const url = await page.getAttribute('#install-primary', 'data-url');
+  assert.match(url, /utm_medium=thanks_card/, '帶著原本的 UTM');
+  assert.match(url, /openExternalBrowser=1/, 'LINE 會用預設瀏覽器打開');
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '72-install-line.png') });
+  }
+  await page.click('#install-secondary');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'https://success.jas-soul.com/');
+  await page.click('#install-later');
+  // 同一個 App 裡再打開不會一直跳
+  await page.reload();
+  await page.waitForTimeout(300);
+  assert.equal(await page.isHidden('#install-sheet'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('加到主畫面：iPhone 從主畫面打開、還是空的時，提醒用 Google 登入找回剛剛寫的日記', async () => {
+  const { context, page, errors } = await newPage({ userAgent: IPHONE_SAFARI });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  await page.reload();
+  await page.waitForSelector('#login-bar:not([hidden])');
+  assert.match(await page.textContent('#login-bar'), /剛從 Safari 加過來的嗎？[\s\S]*用 Google 登入就能找回剛剛寫的日記/);
+  assert.equal(await page.isHidden('#install-bar'), true, '從主畫面打開就不提醒加到主畫面');
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '73-standalone-fresh.png') });
+  // 寫了之後恢復一般的登入提醒
+  await page.fill('#item-0', '第一件');
+  await page.locator('#item-0').blur();
+  await page.reload();
+  assert.match(await page.textContent('#login-bar'), /尚未登入/);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('加到主畫面：電腦上不主動提醒', async () => {
+  const { context, page, errors } = await newPage();
+  await page.fill('#item-0', '第一件小成功');
+  await page.click('.prompt .label-caps');
+  await page.waitForTimeout(1600);
+  assert.equal(await page.isHidden('#install-sheet'), true);
+  assert.equal(await page.isHidden('#install-bar'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+/** 模擬瀏覽器的通知權限與推播訂閱（測試環境沒有真的推播服務） */
+async function fakePush(page, { permission = 'granted' } = {}) {
+  await page.addInitScript((perm) => {
+    let current = 'default';
+    Object.defineProperty(Notification, 'permission', { get: () => current });
+    Notification.requestPermission = async () => (current = perm);
+    const sub = { endpoint: 'https://push.example/device-1', toJSON: () => ({ endpoint: 'https://push.example/device-1', keys: { p256dh: 'P256', auth: 'AUTH' } }), unsubscribe: async () => true };
+    let subscribed = false;
+    PushManager.prototype.getSubscription = async () => (subscribed ? sub : null);
+    PushManager.prototype.subscribe = async () => ((subscribed = true), sub);
+  }, permission);
+}
+
+test('每日提醒：從主畫面寫完今天後詢問；選時間開啟；當天寫過會告知；設定頁可改時間、關閉', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server, userAgent: IPHONE_SAFARI });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  await fakePush(page);
+  await page.reload();
+
+  await page.fill('#item-0', '早上喝了一杯溫水');
+  await page.click('.prompt .label-caps');
+  await page.waitForSelector('#reminder-sheet:not([hidden])');
+  assert.equal(await page.textContent('#reminder-title'), '要不要每天提醒你？');
+  const options = await page.locator('#reminder-times-sheet .reminder-time').allTextContents();
+  assert.deepEqual(options, ['傍晚17:00', '晚上21:00', '睡前23:00']);
+  assert.equal(await page.getAttribute('#reminder-times-sheet .reminder-time.on', 'aria-pressed'), 'true');
+  assert.match(await page.textContent('#reminder-times-sheet .reminder-time.on'), /21:00/, '預設晚上 21:00');
+  await page.click('#reminder-times-sheet .reminder-time >> text=23:00');
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '74-reminder-ask.png') });
+  }
+  await page.click('#reminder-yes');
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_save'), '存到資料庫');
+  const save = server.pushCalls.find((c) => c.name === 'sj_push_save');
+  assert.deepEqual([save.args.p_endpoint, save.args.p_remind_at, save.args.p_p256dh, save.args.p_auth], ['https://push.example/device-1', '23:00', 'P256', 'AUTH']);
+  assert.ok(save.args.p_tz);
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_wrote'), '今天已經寫了，今天不提醒');
+  const r = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).reminder);
+  assert.deepEqual([r.on, r.time, r.asked], [true, '23:00', true]);
+
+  // 不會再問第二次
+  await page.fill('#item-1', '第二件');
+  await page.click('.prompt .label-caps');
+  await page.waitForTimeout(1800);
+  assert.equal(await page.isHidden('#reminder-sheet'), true);
+
+  // 設定頁：顯示已開啟、23:00；改成自訂 07:30；關閉
+  await page.click('#tab-data');
+  assert.equal(await page.isChecked('#reminder-on'), true);
+  assert.match(await page.textContent('#reminder-times-settings .reminder-time.on'), /23:00/);
+  if (SCREENSHOT_DIR) await page.locator('#reminder-on').locator('xpath=ancestor::section[1]').screenshot({ path: join(SCREENSHOT_DIR, '75-reminder-settings.png') });
+  const before = server.pushCalls.length;
+  await page.fill('#reminder-times-settings .reminder-custom', '19:30');
+  await expectEventually(() => server.pushCalls.slice(before).some((c) => c.name === 'sj_push_save' && c.args.p_remind_at === '19:30'), '改時間');
+  await page.click('label:has(#reminder-on)');
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_delete'), '關閉後刪除');
+  assert.equal(await page.isHidden('#reminder-time-row'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('每日提醒：iPhone 在 Safari 裡（還沒加到主畫面）時，說明要先加到主畫面', async () => {
+  const { context, page, errors } = await newPage({ userAgent: IPHONE_SAFARI });
+  await page.click('#tab-data');
+  assert.equal(await page.isDisabled('#reminder-on'), true);
+  assert.match(await page.textContent('#reminder-note'), /iPhone 需要先把成功日記加到主畫面/);
+  await page.click('#reminder-install');
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  assert.equal(await page.textContent('#install-title'), '把成功日記放到主畫面');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('每日提醒：不允許通知時會說明，不會一直問', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server, userAgent: IPHONE_SAFARI });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  await fakePush(page, { permission: 'denied' });
+  await page.reload();
+  await page.fill('#item-0', '第一件');
+  await page.click('.prompt .label-caps');
+  await page.waitForSelector('#reminder-sheet:not([hidden])');
+  await page.click('#reminder-yes');
+  await page.waitForFunction(() => /沒有開啟通知權限/.test(document.getElementById('toast').textContent));
+  assert.equal(server.pushCalls.length, 0);
+  await page.click('#tab-data');
+  assert.equal(await page.isChecked('#reminder-on'), false);
+  assert.match(await page.textContent('#reminder-note'), /通知權限被關閉了/);
   assert.deepEqual(errors, []);
   await context.close();
 });
