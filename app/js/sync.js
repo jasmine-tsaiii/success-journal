@@ -15,7 +15,7 @@ function loadMeta(userId) {
   } catch {
     /* 忽略 */
   }
-  return { userId, cursor: null, pushed: {}, photos: {}, tagsJson: null, thanksJson: null, tagsUpdatedAt: null, lastSyncAt: null };
+  return { userId, cursor: null, pushed: {}, photos: {}, tagsJson: null, thanksJson: null, challengeJson: null, tagsUpdatedAt: null, lastSyncAt: null };
 }
 
 function saveMeta(meta) {
@@ -91,16 +91,27 @@ export function initSync(app) {
     const localThanks = app.getThanksList();
     const tagsJson = JSON.stringify(localTags);
     const thanksJson = JSON.stringify(localThanks);
-    // 舊版沒有記錄感謝對象：當作已同步，不讓升級本身把清單標成剛修改
+    const localChallenge = app.getChallenge();
+    const challengeJson = JSON.stringify(localChallenge);
+    // 舊版沒有記錄感謝對象／勇氣挑戰：當作已同步，不讓升級本身把清單標成剛修改
     if (meta.thanksJson == null && !firstSync) meta.thanksJson = thanksJson;
-    if (tagsJson !== meta.tagsJson || thanksJson !== meta.thanksJson) {
+    if (meta.challengeJson == null && !firstSync) meta.challengeJson = challengeJson;
+    if (tagsJson !== meta.tagsJson || thanksJson !== meta.thanksJson || challengeJson !== meta.challengeJson) {
       meta.tagsJson = tagsJson;
       meta.thanksJson = thanksJson;
+      meta.challengeJson = challengeJson;
       meta.tagsUpdatedAt = firstSync ? new Date(0).toISOString() : new Date().toISOString();
     }
 
     const collect = () =>
-      localDocs({ entries: app.getEntries(), boards: app.getBoards(), tags: app.getTags(), thanks: app.getThanksList(), tagsUpdatedAt: meta.tagsUpdatedAt });
+      localDocs({
+        entries: app.getEntries(),
+        boards: app.getBoards(),
+        tags: app.getTags(),
+        thanks: app.getThanksList(),
+        challenge: app.getChallenge(),
+        tagsUpdatedAt: meta.tagsUpdatedAt,
+      });
 
     const pullAndApply = async (since) => {
       const rows = await cloud.pullDocs(since);
@@ -122,7 +133,16 @@ export function initSync(app) {
             const mergedThanks = firstSync ? [...new Set([...remoteThanks, ...localThanks])] : remoteThanks;
             app.setThanksList(mergedThanks);
             meta.thanksJson = JSON.stringify(mergedThanks);
-            const same = merged.length === next.tags.length && next.thanks && mergedThanks.length === next.thanks.length;
+            // 勇氣挑戰：雲端有就用雲端的；雲端還沒有這個欄位或沒有挑戰時，第一次同步保留本機的
+            const challenge = next.challenge === undefined || (firstSync && !next.challenge) ? localChallenge : next.challenge;
+            app.setChallenge(challenge);
+            meta.challengeJson = JSON.stringify(challenge);
+            const same =
+              merged.length === next.tags.length &&
+              next.thanks &&
+              mergedThanks.length === next.thanks.length &&
+              next.challenge !== undefined &&
+              JSON.stringify(next.challenge) === meta.challengeJson;
             meta.tagsUpdatedAt = same ? next.tagsUpdatedAt : new Date().toISOString();
           }
         } finally {

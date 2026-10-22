@@ -345,6 +345,59 @@ export async function renderInviteCard({ days = 0, wins = 0, name = '', color = 
   return canvas;
 }
 
+/** 勇氣挑戰成果卡：只放天數與次數，不放日記內容 */
+export async function renderCourageCard({ days, brave = 0, no = 0, yes = 0, name = '', color = C.accent }) {
+  const who = name.trim() ? `${name.trim()}${/[A-Za-z0-9]$/.test(name.trim()) ? ' ' : ''}的` : '我的';
+  await ensureFonts(`${who}天勇氣挑戰完成勇敢了次被拒絕成功每一次開口都讓下一次更容易⚡`);
+  const { canvas, ctx } = cardBase(color);
+
+  ctx.fillStyle = color;
+  ctx.font = `600 28px ${LATIN}`;
+  spaced(ctx, 'COURAGE CHALLENGE', CW / 2, 190, 10, 'center');
+  ctx.fillStyle = C.ink;
+  ctx.font = `700 64px ${SERIF}`;
+  spaced(ctx, `${who} ${days} 天勇氣挑戰`, CW / 2, 300, 6, 'center');
+  ctx.fillStyle = C.ink2;
+  ctx.font = `500 40px ${SERIF}`;
+  spaced(ctx, '完成 ⚡', CW / 2, 380, 6, 'center');
+
+  // 三個數字
+  const cols = [
+    [brave, '勇敢了'],
+    [no, '被拒絕'],
+    [yes, '成功'],
+  ];
+  const colW = (CW - M * 2) / 3;
+  cols.forEach(([num, label], k) => {
+    const x = M + colW * k + colW / 2;
+    ctx.fillStyle = k === 1 ? color : C.ink;
+    ctx.font = `500 150px ${LATIN}`;
+    ctx.textAlign = 'center';
+    ctx.fillText(String(num), x, 640);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = C.ink2;
+    ctx.font = `500 36px ${SERIF}`;
+    spaced(ctx, `${label}`, x, 712, 4, 'center');
+    ctx.font = `500 28px ${SERIF}`;
+    ctx.fillStyle = C.muted;
+    spaced(ctx, '次', x, 760, 4, 'center');
+  });
+
+  // 一句話（紙卡）
+  const top = 860;
+  ctx.fillStyle = C.paper;
+  ctx.fillRect(M, top, CW - M * 2, 200);
+  ctx.fillStyle = color;
+  ctx.fillRect(M, top, CW - M * 2, 8);
+  ctx.fillStyle = C.ink;
+  ctx.font = `500 44px ${SERIF}`;
+  spaced(ctx, '每一次開口，', CW / 2, top + 90, 6, 'center');
+  spaced(ctx, '都讓下一次更容易。', CW / 2, top + 152, 6, 'center');
+  cardFooter(ctx);
+  grain(ctx, CW, CH);
+  return canvas;
+}
+
 export function canvasToBlob(canvas) {
   return new Promise((r) => canvas.toBlob(r, 'image/png'));
 }

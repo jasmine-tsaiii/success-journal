@@ -146,3 +146,13 @@ test('感謝對象清單和標籤放在同一份文件同步；舊版的文件�
   assert.equal(docsToState(old.local).thanks, null);
   assert.deepEqual(docsToState(old.local).tags, ['理財']);
 });
+
+test('勇氣挑戰和標籤放在同一份文件；舊版文件沒有這個欄位時回傳 undefined（保留本機的）', () => {
+  const ch = { startDate: '2026-10-01', days: 30, target: 20 };
+  const docs = localDocs({ tags: ['工作'], thanks: ['媽媽'], challenge: ch, tagsUpdatedAt: T1 });
+  assert.deepEqual(docs.get('tags:list').data.challenge, ch);
+  assert.deepEqual(docsToState(docs).challenge, ch);
+  assert.equal(docsToState(localDocs({ tags: [], challenge: null, tagsUpdatedAt: T1 })).challenge, null, '沒有挑戰');
+  const old = applyRemote(new Map(), {}, [{ kind: 'tags', key: 'list', data: { list: ['理財'] }, deleted: false, updated_at: T2 }]);
+  assert.equal(docsToState(old.local).challenge, undefined);
+});

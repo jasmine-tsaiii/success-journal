@@ -1,6 +1,7 @@
 // 純邏輯模組：日期、脈輪輪替、統計、備份格式。
 // 不碰 DOM，方便在 Node 中測試。
 
+import { cleanCourage } from './courage-core.js';
 import { CHAKRAS } from './chakras.js';
 import { sanitizeBoard } from './board-core.js';
 
@@ -428,6 +429,7 @@ export function parseBackup(text) {
       ...(reflection ? { reflection } : {}),
       ...(hasThanks ? { gratitude, gratitudeTo: cleanThanksTo(entry.gratitudeTo, gratitude.length) } : {}),
       tags: cleanTags(entry.tags, items.length),
+      ...(cleanCourage(entry.courage, items.length) ? { courage: cleanCourage(entry.courage, items.length) } : {}),
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : new Date().toISOString(),
     };
   }

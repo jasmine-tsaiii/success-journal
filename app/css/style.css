@@ -3044,3 +3044,342 @@ a.set-row[hidden] {
 .reminder-time-row .reminder-times {
   justify-content: flex-start;
 }
+
+/* ---------- 勇氣練習 ---------- */
+.courage-chip {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.courage-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+
+.courage-badge {
+  font-size: 12px;
+  color: var(--accent);
+  margin-right: 8px;
+  letter-spacing: 0.04em;
+}
+
+.courage-outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.courage-outcome-lead {
+  font-size: 12px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.courage-opt {
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+
+.courage-opt.on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.courage-opt.is-no.on {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.courage-card {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+  border-left: 3px solid var(--accent);
+}
+
+.courage-card p {
+  margin: 0;
+}
+
+.courage-card-head {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.courage-card-sub {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 2px 0 8px !important;
+}
+
+.courage-field {
+  display: block;
+  margin-top: 8px;
+}
+
+.courage-field span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.courage-field input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--sans, inherit);
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.courage-field input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+/* 今日頁頂端的挑戰進度 */
+.courage-bar {
+  display: block;
+  width: 100%;
+  margin: 22px 0 0;
+  padding: 10px 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.courage-bar[hidden] {
+  display: none;
+}
+
+.courage-bar-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.courage-bar-count {
+  color: var(--accent);
+  font-family: var(--latin);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.courage-bar-track {
+  display: block;
+  height: 5px;
+  margin-top: 8px;
+  background: var(--rule);
+}
+
+.courage-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+/* 回顧頁的挑戰面板 */
+.courage-panel {
+  margin: 4px 0 30px;
+  padding-bottom: 22px;
+  border-bottom: 1.5px solid var(--ink);
+}
+
+.courage-panel[hidden] {
+  display: none;
+}
+
+.courage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.courage-title {
+  font-size: 21px;
+  letter-spacing: 0.1em;
+  margin: 4px 0 6px;
+  font-weight: 700;
+}
+
+.courage-day {
+  font-family: var(--latin);
+  font-size: 15px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.courage-lead {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--ink-2);
+  margin: 4px 0 12px;
+}
+
+.courage-label {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 14px 0 6px;
+}
+
+.courage-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.courage-custom {
+  width: 84px;
+  min-width: 0;
+}
+
+.courage-start {
+  margin-top: 18px;
+}
+
+.courage-safe {
+  margin-top: 10px;
+}
+
+.courage-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.courage-stat {
+  text-align: center;
+  padding: 8px 0 6px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+}
+
+.courage-stat-num {
+  display: block;
+  font-family: var(--latin);
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.courage-stat.is-no .courage-stat-num {
+  color: var(--accent);
+}
+
+.courage-stat-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.courage-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.courage-cell {
+  aspect-ratio: 1;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.courage-cell.done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.courage-cell.today {
+  outline: 1.5px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.courage-cell.future {
+  opacity: 0.45;
+}
+
+.courage-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.courage-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.courage-recent li {
+  display: grid;
+  grid-template-columns: 3.2em 1.2em 1fr;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.courage-recent-date {
+  font-family: var(--latin);
+  color: var(--muted);
+}
+
+.courage-recent li.is-no .courage-recent-icon {
+  color: var(--accent);
+}
+
+.courage-recent-fear {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.courage-end {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* 勇氣點子 */
+.idea-levels {
+  margin: 10px 0 14px;
+}
+
+.idea-card {
+  min-height: 3.4em;
+  margin: 0 0 6px;
+  padding: 18px 16px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.idea-hint {
+  margin: 0 0 16px;
+}

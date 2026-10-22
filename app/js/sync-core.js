@@ -15,7 +15,7 @@ export function normTime(t) {
 const later = (a, b) => Date.parse(a) > Date.parse(b);
 
 /** 本機資料 → Map<id, { kind, key, data, updatedAt }> */
-export function localDocs({ entries = {}, boards = [], tags = null, thanks = null, tagsUpdatedAt = null }) {
+export function localDocs({ entries = {}, boards = [], tags = null, thanks = null, challenge, tagsUpdatedAt = null }) {
   const map = new Map();
   const epoch = new Date(0).toISOString();
   for (const [key, entry] of Object.entries(entries)) {
@@ -29,6 +29,7 @@ export function localDocs({ entries = {}, boards = [], tags = null, thanks = nul
   if (Array.isArray(tags) && tagsUpdatedAt) {
     // 標籤與感謝對象兩份清單放在同一份文件
     const data = Array.isArray(thanks) ? { list: tags, thanks } : { list: tags };
+    if (challenge !== undefined) data.challenge = challenge; // 勇氣挑戰（null 表示沒有進行中的挑戰）
     map.set(docId('tags', 'list'), { kind: 'tags', key: 'list', data, updatedAt: normTime(tagsUpdatedAt) });
   }
   return map;
@@ -102,6 +103,7 @@ export function docsToState(local) {
   const boards = [];
   let tags = null;
   let thanks = null;
+  let challenge; // undefined：雲端還沒有這個欄位（舊版寫的），保留本機的
   let tagsUpdatedAt = null;
   for (const doc of local.values()) {
     if (doc.kind === 'entry') entries[doc.key] = doc.data;
@@ -109,10 +111,11 @@ export function docsToState(local) {
     else if (doc.kind === 'tags' && Array.isArray(doc.data.list)) {
       tags = doc.data.list.filter((t) => typeof t === 'string');
       if (Array.isArray(doc.data.thanks)) thanks = doc.data.thanks.filter((t) => typeof t === 'string');
+      if ('challenge' in doc.data) challenge = doc.data.challenge && typeof doc.data.challenge === 'object' ? doc.data.challenge : null;
       tagsUpdatedAt = doc.updatedAt;
     }
   }
-  return { entries, boards, tags, thanks, tagsUpdatedAt };
+  return { entries, boards, tags, thanks, challenge, tagsUpdatedAt };
 }
 
 /** 讓下一次「增量下載」稍微往前重疊，避免同時寫入時漏掉資料（重複套用不會有影響） */
