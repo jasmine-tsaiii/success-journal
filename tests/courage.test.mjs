@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { IDEAS, challengeProgress, cleanChallenge, cleanCourage, courageItems, pickIdea } from '../app/js/courage-core.js';
+import { COMFORT_LINES, IDEAS, challengeProgress, comfortLine, cleanChallenge, cleanCourage, courageItems, pickIdea } from '../app/js/courage-core.js';
 
 const e = (items, courage) => ({ items, courage, updatedAt: '2026-10-01T00:00:00.000Z' });
 
@@ -83,4 +83,12 @@ test('勇氣點子：三個等級都有，抽的時候不重複上一個', () =>
   const b = pickIdea(1, a, () => 0);
   assert.notEqual(b.text, a.text);
   assert.ok(pickIdea(null, null, () => 0.999));
+});
+
+test('安慰句：依日期與第幾件輪流，同一件每次都一樣', () => {
+  assert.equal(comfortLine('2026-10-05', 1), comfortLine('2026-10-05', 1));
+  const seen = new Set();
+  for (let d = 1; d <= 10; d++) seen.add(comfortLine(`2026-10-${String(d).padStart(2, '0')}`, 0));
+  assert.equal(seen.size, COMFORT_LINES.length, '幾天內每一句都會出現');
+  assert.ok(COMFORT_LINES.includes(comfortLine('bad', 7)));
 });

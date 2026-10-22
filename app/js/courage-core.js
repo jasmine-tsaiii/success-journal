@@ -10,6 +10,20 @@ export const OUTCOME_ICON = { yes: '✓', no: '✗', pending: '…' };
 
 const MAX_NOTE = 300;
 
+/** 被拒絕時的安慰句：依日期與第幾件輪流出現（同一件小成功每次打開都是同一句） */
+export const COMFORT_LINES = [
+  '被拒絕代表你有行動，不代表你不夠好。',
+  '對方說不，是對這個請求說不，不是對你這個人。',
+  '你練習的是開口，結果本來就不在你手上。',
+  '沒被拒絕過的人，通常也沒開口過。',
+  '每一個「不」，都讓你離下一個「好」更近。',
+];
+
+export function comfortLine(date, i = 0) {
+  const n = isValidKey(date) ? dayNumber(date) * 3 + i : i;
+  return COMFORT_LINES[((n % COMFORT_LINES.length) + COMFORT_LINES.length) % COMFORT_LINES.length];
+}
+
 /** 清理一件小成功的勇氣紀錄：{ outcome, fear, next }，不是勇敢一步的回傳 null */
 function cleanOne(c) {
   if (!c || typeof c !== 'object') return null;

@@ -56,6 +56,7 @@ import {
   challengeProgress,
   cleanChallenge,
   cleanCourage,
+  comfortLine,
   pickIdea,
 } from './courage-core.js';
 import { DEFAULT_TIME, REMINDER_TIMES, disableReminder, enableReminder, markWritten, permission, pushSupport } from './reminders.js';
@@ -1744,10 +1745,10 @@ function courageOutcome(i) {
   const p = progressNow();
   const head = document.createElement('p');
   head.className = 'courage-card-head';
-  head.textContent = '被拒絕 +1 🎉';
+  head.textContent = '又勇敢了一次 💪';
   const sub = document.createElement('p');
   sub.className = 'courage-card-sub';
-  sub.textContent = `${p && !p.finished ? `離挑戰目標又近一步：${p.no} / ${p.target}。` : '你踏出去了。'}被拒絕代表你有行動，不代表你不夠好。`;
+  sub.textContent = `${p && !p.finished ? `離挑戰目標又近一步：${p.no} / ${p.target}。` : '你踏出去了。'}${comfortLine(state.date, i)}`;
   card.append(head, sub);
   const field = (key, label, placeholder) => {
     const l = document.createElement('label');

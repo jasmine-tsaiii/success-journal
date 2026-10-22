@@ -348,7 +348,7 @@ export async function renderInviteCard({ days = 0, wins = 0, name = '', color = 
 /** 勇氣挑戰成果卡：只放天數與次數，不放日記內容。勇敢＝被拒絕＋成功＋還沒回音 */
 export async function renderCourageCard({ days, brave = 0, no = 0, yes = 0, pending = Math.max(0, brave - no - yes), name = '', color = C.accent }) {
   const who = name.trim() ? `${name.trim()}${/[A-Za-z0-9]$/.test(name.trim()) ? ' ' : ''}的` : '我的';
-  await ensureFonts(`${who}天勇氣挑戰完成勇敢了次被拒絕成功還沒回音・每一次開口都讓下一次更容易`);
+  await ensureFonts(`${who}天勇氣挑戰勇敢了次被拒絕成功還沒回音・每一次開口都讓下一次更容易`);
   const { canvas, ctx } = cardBase(color);
 
   ctx.fillStyle = color;
@@ -358,37 +358,19 @@ export async function renderCourageCard({ days, brave = 0, no = 0, yes = 0, pend
   ctx.font = `700 64px ${SERIF}`;
   spaced(ctx, `${who} ${days} 天勇氣挑戰`, CW / 2, 290, 6, 'center');
 
-  // 「◆ 完成 ◆」：兩顆小菱形直接畫，左右對稱
+  // 主數字：勇敢了幾次（數字本身置中，和上下的字對齊；「次」掛在右邊）
   ctx.fillStyle = C.ink2;
   ctx.font = `500 40px ${SERIF}`;
-  spaced(ctx, '完成', CW / 2, 370, 10, 'center');
-  ctx.fillStyle = color;
-  for (const x of [CW / 2 - 84, CW / 2 + 84]) {
-    ctx.beginPath();
-    ctx.moveTo(x, 344);
-    ctx.lineTo(x + 9, 356);
-    ctx.lineTo(x, 368);
-    ctx.lineTo(x - 9, 356);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // 主數字：勇敢了幾次
-  ctx.fillStyle = C.ink2;
-  ctx.font = `500 38px ${SERIF}`;
-  spaced(ctx, '勇敢了', CW / 2, 480, 6, 'center');
+  spaced(ctx, '勇敢了', CW / 2, 420, 8, 'center');
   ctx.fillStyle = C.ink;
   ctx.font = `500 200px ${LATIN}`;
+  const numW = ctx.measureText(String(brave)).width;
   ctx.textAlign = 'center';
-  ctx.fillText(String(brave), CW / 2 - 24, 660);
+  ctx.fillText(String(brave), CW / 2, 640);
   ctx.textAlign = 'left';
-  const numW = (() => {
-    ctx.font = `500 200px ${LATIN}`;
-    return ctx.measureText(String(brave)).width;
-  })();
   ctx.fillStyle = C.ink2;
   ctx.font = `500 44px ${SERIF}`;
-  ctx.fillText('次', CW / 2 - 24 + numW / 2 + 14, 656);
+  ctx.fillText('次', CW / 2 + numW / 2 + 16, 636);
 
   // 拆開來：被拒絕・成功・還沒回音（加起來＝勇敢的次數）
   const cols = [
@@ -398,17 +380,17 @@ export async function renderCourageCard({ days, brave = 0, no = 0, yes = 0, pend
   ];
   const colW = (CW - M * 2) / 3;
   ctx.fillStyle = C.rule;
-  ctx.fillRect(M, 720, CW - M * 2, 2);
+  ctx.fillRect(M, 710, CW - M * 2, 2);
   cols.forEach(([num, label, c], k) => {
     const x = M + colW * k + colW / 2;
     ctx.fillStyle = c;
     ctx.font = `500 76px ${LATIN}`;
     ctx.textAlign = 'center';
-    ctx.fillText(String(num), x, 816);
+    ctx.fillText(String(num), x, 810);
     ctx.textAlign = 'left';
     ctx.fillStyle = C.ink2;
     ctx.font = `500 30px ${SERIF}`;
-    spaced(ctx, label, x, 866, 4, 'center');
+    spaced(ctx, label, x, 860, 4, 'center');
   });
 
   // 一句話（紙卡）
