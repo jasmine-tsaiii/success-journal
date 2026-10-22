@@ -1448,7 +1448,10 @@ test('加到主畫面：第一天寫完跳出步驟；隔天打開有小提醒�
   assert.match(await page.textContent('#install-steps'), /分享[\s\S]*加入主畫面[\s\S]*加入/);
   assert.match(await page.textContent('#install-note'), /先到「設定」用 Google 登入/, '沒登入時提醒 iPhone 資料分開');
   assert.equal(await page.textContent('#install-secondary'), '先去登入');
-  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '70-install-first-day.png') });
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '70-install-first-day.png') });
+  }
   await page.click('#install-later');
   assert.equal(await page.isHidden('#install-sheet'), true);
   let install = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).install);
@@ -1491,19 +1494,54 @@ test('加到主畫面：第一天寫完跳出步驟；隔天打開有小提醒�
   await context.close();
 });
 
-test('加到主畫面：在 LINE 裡打開時，先引導換到瀏覽器並可複製網址', async () => {
+test('加到主畫面：在 LINE 裡打開時，一進來就引導用手機瀏覽器打開（保留 UTM），也可以複製網址', async () => {
   const { context, page, errors } = await newPage({ userAgent: IPHONE_LINE });
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.fill('#item-0', '第一件小成功');
-  await page.click('.prompt .label-caps');
+  // 第一次打開就出現引導
   await page.waitForSelector('#install-sheet:not([hidden])');
-  assert.match(await page.textContent('#install-lead'), /你現在是在 LINE 裡面打開的/);
-  assert.match(await page.textContent('#install-steps'), /用瀏覽器開啟/);
-  assert.match(await page.textContent('#install-note'), /在 LINE 裡寫的日記只會留在 LINE 裡/);
-  assert.equal(await page.textContent('#install-primary'), '複製網址');
-  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '72-install-line.png') });
-  await page.click('#install-primary');
+  // 模擬朋友從感謝卡連結第一次進來（清掉剛才的提醒紀錄）
+  await page.evaluate(() => {
+    const k = 'success-journal.settings.v1';
+    const st = JSON.parse(localStorage.getItem(k) || '{}');
+    delete st.install;
+    localStorage.setItem(k, JSON.stringify(st));
+  });
+  await page.goto(`${origin}${BASE}?utm_source=success_journal&utm_medium=thanks_card&utm_campaign=friend_referral`);
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  assert.equal(await page.textContent('#install-title'), '用手機的瀏覽器打開');
+  assert.match(await page.textContent('#install-lead'), /你現在是在 LINE 裡面打開的。在這裡寫的日記只會留在 LINE 裡/);
+  assert.equal(await page.textContent('#install-primary'), '用瀏覽器打開');
+  const url = await page.getAttribute('#install-primary', 'data-url');
+  assert.match(url, /utm_medium=thanks_card/, '帶著原本的 UTM');
+  assert.match(url, /openExternalBrowser=1/, 'LINE 會用預設瀏覽器打開');
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '72-install-line.png') });
+  }
+  await page.click('#install-secondary');
   assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'https://success.jas-soul.com/');
+  await page.click('#install-later');
+  // 同一個 App 裡再打開不會一直跳
+  await page.reload();
+  await page.waitForTimeout(300);
+  assert.equal(await page.isHidden('#install-sheet'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('加到主畫面：iPhone 從主畫面打開、還是空的時，提醒用 Google 登入找回剛剛寫的日記', async () => {
+  const { context, page, errors } = await newPage({ userAgent: IPHONE_SAFARI });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  await page.reload();
+  await page.waitForSelector('#login-bar:not([hidden])');
+  assert.match(await page.textContent('#login-bar'), /剛從 Safari 加過來的嗎？[\s\S]*用 Google 登入就能找回剛剛寫的日記/);
+  assert.equal(await page.isHidden('#install-bar'), true, '從主畫面打開就不提醒加到主畫面');
+  if (SCREENSHOT_DIR) await page.screenshot({ path: join(SCREENSHOT_DIR, '73-standalone-fresh.png') });
+  // 寫了之後恢復一般的登入提醒
+  await page.fill('#item-0', '第一件');
+  await page.locator('#item-0').blur();
+  await page.reload();
+  assert.match(await page.textContent('#login-bar'), /尚未登入/);
   assert.deepEqual(errors, []);
   await context.close();
 });

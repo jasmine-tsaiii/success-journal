@@ -32,9 +32,30 @@ export function installNudge({ platform, standalone, installedApp = false, insta
   if (shows > BANNER_GAPS.length) return null;
   if (install.shownDay === today) return null;
   if (installedApp) return 'open-app';
+  // 在 LINE、IG 等 App 裡打開：一進來就引導換到瀏覽器，免得日記寫在 App 裡面
+  if (platform === 'inapp' && !install.shownDay) return 'sheet';
   if (firstDayDone && !install.shownDay) return 'sheet';
   if (recordedDays < 1) return null;
   if (!install.shownDay) return 'banner'; // 已經寫過、但還沒看過說明的人（例如功能上線前就在用）
   const gap = BANNER_GAPS[Math.min(Math.max(shows - 1, 0), BANNER_GAPS.length - 1)];
   return dayNum(today) - dayNum(install.shownDay) >= gap ? 'banner' : null;
+}
+
+/**
+ * 從 App 內建瀏覽器跳到手機瀏覽器的網址（保留原本的 UTM）
+ *  LINE：加上 openExternalBrowser=1，LINE 會用預設瀏覽器打開
+ *  Android 的 IG、FB 等：intent:// 交給系統選擇瀏覽器
+ *  iPhone 的 IG、FB 等：x-safari-https://（iOS 17 起支援）直接用 Safari 打開
+ */
+export function externalBrowserUrl(href, ua = '') {
+  const url = new URL(href);
+  if (/\bLine\//i.test(ua)) {
+    url.searchParams.set('openExternalBrowser', '1');
+    return { url: url.toString(), label: '用瀏覽器打開' };
+  }
+  if (/Android/.test(ua)) {
+    const fallback = encodeURIComponent(url.toString());
+    return { url: `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;S.browser_fallback_url=${fallback};end`, label: '用瀏覽器打開' };
+  }
+  return { url: `x-safari-${url.toString()}`, label: '用 Safari 打開' };
 }

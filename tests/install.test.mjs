@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectPlatform, installNudge } from '../app/js/install-core.js';
+import { detectPlatform, externalBrowserUrl, installNudge } from '../app/js/install-core.js';
 
 const UA = {
   iphoneSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
@@ -48,4 +48,23 @@ test('什麼時候提醒加到主畫面', () => {
   // Android 已經裝了卻在瀏覽器打開：提醒從主畫面打開
   assert.equal(installNudge({ ...base, platform: 'android', installedApp: true }), 'open-app');
   assert.equal(installNudge({ ...base, platform: 'android', installedApp: true, install: shown('2026-10-22', 1) }), null);
+});
+
+test('在 LINE、IG 裡打開：一進來就引導，只引導一次', () => {
+  const base = { platform: 'inapp', standalone: false, recordedDays: 0, today: '2026-10-22' };
+  assert.equal(installNudge(base), 'sheet');
+  assert.equal(installNudge({ ...base, install: { shownDay: '2026-10-22', shows: 1 } }), null);
+  assert.equal(installNudge({ ...base, install: { shownDay: '2026-10-21', shows: 1 } }), null, '還沒寫過就不再提醒');
+  assert.equal(installNudge({ ...base, recordedDays: 2, install: { shownDay: '2026-10-21', shows: 1 } }), 'banner', '已經在 App 裡寫了，之後小提醒');
+});
+
+test('跳到手機瀏覽器的網址保留 UTM', () => {
+  const href = 'https://success.jas-soul.com/?utm_source=success_journal&utm_medium=thanks_card';
+  const line = externalBrowserUrl(href, UA.iphoneLine);
+  assert.equal(line.url, `${href}&openExternalBrowser=1`);
+  const ig = externalBrowserUrl(href, UA.iphoneIG);
+  assert.equal(ig.url, `x-safari-${href}`);
+  assert.equal(ig.label, '用 Safari 打開');
+  const fb = externalBrowserUrl(href, UA.androidFB);
+  assert.match(fb.url, /^intent:\/\/success\.jas-soul\.com\/\?utm_source=success_journal&utm_medium=thanks_card#Intent;scheme=https;S\.browser_fallback_url=https%3A%2F%2F/);
 });

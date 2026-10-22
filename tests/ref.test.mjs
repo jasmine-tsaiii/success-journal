@@ -9,6 +9,7 @@ test('分享連結帶 UTM', () => {
   assert.equal(url.searchParams.get('utm_medium'), 'thanks_card');
   assert.equal(url.searchParams.get('utm_campaign'), 'friend_referral');
   assert.equal(url.searchParams.has('utm_content'), false);
+  assert.equal(url.searchParams.get('openExternalBrowser'), '1', 'LINE 裡點開時用手機瀏覽器打開');
   assert.equal(new URL(shareLink('invite_card', 'settings')).searchParams.get('utm_content'), 'settings');
 });
 
@@ -25,4 +26,5 @@ test('讀取與移除網址上的 UTM', () => {
   assert.equal(parseRef(`?utm_source=${'a'.repeat(100)}`).source.length, 60);
   assert.equal(stripUtm('https://a.com/app/?utm_source=x&keep=1&utm_medium=y#top'), 'https://a.com/app/?keep=1#top');
   assert.equal(stripUtm('https://a.com/app/?utm_source=x'), 'https://a.com/app/');
+  assert.equal(stripUtm('https://a.com/?utm_source=x&openExternalBrowser=1'), 'https://a.com/');
 });

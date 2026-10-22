@@ -45,7 +45,7 @@ import { initBoards } from './board-ui.js';
 import { canvasToBlob, renderDayCard, renderInviteCard, renderThanksCard, shareBackup, shareOrDownload } from './share.js';
 import { parseRef, shareLink, stripUtm } from './ref.js';
 import { initAnalytics, setAnalyticsAllowed, setUserProperties, track, trackView } from './analytics.js';
-import { detectPlatform, installNudge } from './install-core.js';
+import { detectPlatform, externalBrowserUrl, installNudge } from './install-core.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
@@ -1373,6 +1373,7 @@ async function importJson(file) {
 const PLATFORM = detectPlatform(navigator.userAgent, navigator.maxTouchPoints || 0);
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const SITE = 'https://success.jas-soul.com/';
+const LANDING_HREF = location.href; // 剛打開時的網址（含 UTM），從 App 跳到瀏覽器時一起帶過去
 
 let deferredPrompt = null; // Android／電腦 Chrome 可以直接跳出安裝視窗
 let installedApp = false; // Android 偵測到已經裝在主畫面
@@ -1434,16 +1435,17 @@ function installGuide(kind) {
   }
   if (PLATFORM === 'inapp') {
     const app = inAppName();
+    const ext = externalBrowserUrl(LANDING_HREF, navigator.userAgent);
     return {
-      lead: `你現在是在 ${app} 裡面打開的，這裡沒辦法加到主畫面。換到手機的瀏覽器打開就可以了：`,
+      lead: `你現在是在 ${app} 裡面打開的。在這裡寫的日記只會留在 ${app} 裡，也沒辦法加到主畫面。換到手機的瀏覽器打開，日記才保存得好。`,
       steps: [
-        [ICON.more, `點 ${app} 畫面右上角（或右下角）的「⋯」`],
+        [ICON.more, `如果按了沒反應：點 ${app} 畫面右上角（或右下角）的「⋯」`],
         [ICON.share, '選「用瀏覽器開啟」或「在 Safari 中開啟」'],
-        [ICON.add, '在瀏覽器裡，再照提示加到主畫面'],
       ],
-      note: loggedIn ? '' : `在 ${app} 裡寫的日記只會留在 ${app} 裡。先到「設定」用 Google 登入，換到瀏覽器後再登入一次，日記就會同步過去。`,
-      primary: { label: '複製網址', action: 'copy' },
-      later: '之後再說',
+      note: loggedIn || !recordedDayCount() ? '' : `已經在 ${app} 裡寫了？先到「設定」用 Google 登入，換到瀏覽器後再登入一次，日記就會同步過去。`,
+      primary: { label: ext.label, action: 'external', url: ext.url },
+      secondary: { label: '複製網址', action: 'copy' },
+      later: '先在這裡看看',
     };
   }
   if (PLATFORM === 'ios-safari') {
@@ -1491,9 +1493,10 @@ let installKind = null;
 function openInstall(kind = 'guide', source = 'settings') {
   installKind = kind;
   const g = installGuide(kind);
-  const first = kind === 'sheet';
-  $('install-kicker').textContent = first ? 'Day 1 · Done' : kind === 'open-app' ? 'Already Installed' : 'Add to Home Screen';
-  $('install-title').textContent = first ? '第一天寫好了！' : kind === 'open-app' ? '從主畫面打開' : '把成功日記放到主畫面';
+  const inapp = PLATFORM === 'inapp';
+  const first = kind === 'sheet' && !inapp;
+  $('install-kicker').textContent = inapp ? 'Open in Browser' : first ? 'Day 1 · Done' : kind === 'open-app' ? 'Already Installed' : 'Add to Home Screen';
+  $('install-title').textContent = inapp ? '用手機的瀏覽器打開' : first ? '第一天寫好了！' : kind === 'open-app' ? '從主畫面打開' : '把成功日記放到主畫面';
   $('install-lead').textContent =
     g.lead || (first ? '把成功日記放到手機主畫面，明天一點就能接著寫。每天的小成功，就從打開它開始。' : '放到主畫面，每天一點就能打開，就像一般的 App。');
   const list = $('install-steps');
@@ -1510,6 +1513,7 @@ function openInstall(kind = 'guide', source = 'settings') {
   const primary = $('install-primary');
   primary.textContent = g.primary.label;
   primary.dataset.action = g.primary.action;
+  primary.dataset.url = g.primary.url || '';
   const second = $('install-secondary');
   second.hidden = !g.secondary;
   if (g.secondary) {
@@ -1526,7 +1530,12 @@ function closeInstall() {
   $('install-sheet').hidden = true;
 }
 
-async function installAction(action) {
+async function installAction(action, url = '') {
+  if (action === 'external' && url) {
+    track('install_external', { platform: PLATFORM, app: inAppName() });
+    location.href = url;
+    return;
+  }
   if (action === 'prompt' && deferredPrompt) {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
@@ -1619,7 +1628,7 @@ function bindInstall() {
     $('install-bar').hidden = true;
     renderLoginBar();
   });
-  $('install-primary').addEventListener('click', () => installAction($('install-primary').dataset.action));
+  $('install-primary').addEventListener('click', () => installAction($('install-primary').dataset.action, $('install-primary').dataset.url));
   $('install-secondary').addEventListener('click', () => installAction($('install-secondary').dataset.action));
   $('install-later').addEventListener('click', closeInstall);
   $('install-sheet').addEventListener('click', (e) => e.target === e.currentTarget && closeInstall());
@@ -1861,6 +1870,11 @@ function renderCloud() {
 function renderLoginBar() {
   // 兩個提醒不同時出現：「加到主畫面」關掉後才顯示登入提醒
   $('login-bar').hidden = !cloud.cloudConfigured() || Boolean(cloud.getSession()) || !$('install-bar').hidden;
+  // iPhone 剛從主畫面打開、還是空的：多半是在 Safari 寫過、加到主畫面後資料沒跟過來（iOS 兩邊是分開存的）
+  const freshHomeScreen = PLATFORM.startsWith('ios') && isStandalone() && !recordedDayCount();
+  $('login-bar').querySelector('.login-bar-text').innerHTML = freshHomeScreen
+    ? '<b>剛從 Safari 加過來的嗎？</b>　主畫面版的資料是分開的，用 Google 登入就能找回剛剛寫的日記'
+    : '<b>尚未登入</b>　日記只在這台裝置。登入 Google 帳號，找回並同步你的日記';
 }
 
 let buttonShown = false;
@@ -2090,8 +2104,8 @@ function init() {
     if (Object.keys(state.entries).length) {
       state.settings = { ...state.settings, onboarded: true };
       saveSettings(state.settings);
-    } else {
-      startOnboarding();
+    } else if (PLATFORM !== 'inapp') {
+      startOnboarding(); // 在 LINE 等 App 裡打開時，先引導換到瀏覽器（到瀏覽器後才看新手引導）
     }
   }
   bindSettings();
