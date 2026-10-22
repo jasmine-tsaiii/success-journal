@@ -544,6 +544,27 @@
       </div>
     </div>
   </div>
+  <div class="share-sheet install-sheet" id="brave-sheet" role="dialog" aria-modal="true" aria-labelledby="brave-title" hidden>
+    <div class="install-inner">
+      <p class="label-caps">Brave Step</p>
+      <h2 class="install-title" id="brave-title">結果怎麼樣？</h2>
+      <p class="brave-item" id="brave-item"></p>
+      <div class="segmented brave-outcomes" role="radiogroup" aria-label="結果">
+        <label><input type="radio" name="brave-outcome" value="yes"><span>成功了</span></label>
+        <label><input type="radio" name="brave-outcome" value="no"><span>被拒絕</span></label>
+        <label><input type="radio" name="brave-outcome" value="pending"><span>還沒回音</span></label>
+      </div>
+      <div class="brave-no" id="brave-no" hidden>
+        <p class="brave-cheer"><b>又勇敢了一次 💪</b><span id="brave-comfort"></span></p>
+        <label class="courage-field"><span>原本擔心的，實際上呢？</span><input type="text" id="brave-fear" maxlength="300" placeholder="選填"></label>
+        <label class="courage-field"><span>下次想怎麼調整？</span><input type="text" id="brave-next" maxlength="300" placeholder="選填"></label>
+      </div>
+      <div class="install-actions">
+        <button type="button" class="btn btn-primary" id="brave-done">好了</button>
+        <button type="button" class="text-btn" id="brave-remove">不算勇敢一步</button>
+      </div>
+    </div>
+  </div>
   <div class="share-sheet install-sheet" id="reminder-sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-title" hidden>
     <div class="install-inner">
       <p class="label-caps">Daily Reminder</p>

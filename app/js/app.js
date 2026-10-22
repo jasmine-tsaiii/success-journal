@@ -649,7 +649,6 @@ function renderTagRows() {
     for (const tag of tags) strip.appendChild(tagChip(i, tag));
     strip.appendChild(customChip(i, strip));
     row.appendChild(strip);
-    if (brave) row.appendChild(courageOutcome(i));
   }
 }
 
@@ -1682,22 +1681,24 @@ function setChallenge(c, { fromSync = false } = {}) {
   renderCouragePanel();
 }
 
-/** 標籤列最前面的「勇敢一步」 */
+/** 標籤列最前面的「勇敢一步」：點了打開結果視窗；標過的直接顯示結果 */
 function courageChip(i) {
   const b = document.createElement('button');
   b.type = 'button';
-  const on = Boolean(state.dayCourage[i]);
-  b.className = `tag-chip courage-chip${on ? ' on' : ''}`;
-  b.setAttribute('aria-pressed', String(on));
-  b.textContent = on ? '勇敢一步 ✓' : '勇敢一步';
-  keepFocus(b);
+  const c = state.dayCourage[i];
+  b.className = `tag-chip courage-chip${c ? ' on' : ''}`;
+  b.setAttribute('aria-pressed', String(Boolean(c)));
+  b.textContent = c ? `勇敢一步・${OUTCOME_LABEL[c.outcome]}` : '勇敢一步';
   b.addEventListener('click', () => {
-    state.dayCourage[i] = state.dayCourage[i] ? null : { outcome: 'pending', fear: '', next: '' };
-    state.dirty = true;
-    flushSave();
-    renderTagRows();
-    renderCourageBar();
-    if (state.dayCourage[i]) track('courage_mark', { outcome: 'pending' });
+    if (!state.dayCourage[i]) {
+      state.dayCourage[i] = { outcome: 'pending', fear: '', next: '' };
+      state.dirty = true;
+      flushSave();
+      renderTagRows();
+      renderCourageBar();
+      track('courage_mark', { outcome: 'pending' });
+    }
+    openBrave(i);
   });
   return b;
 }
@@ -1710,80 +1711,62 @@ function courageBadge(c) {
   return span;
 }
 
-/** 結果三選一（一條細的分段按鈕）；被拒絕時下面多一句鼓勵和一個選填欄位 */
-function courageOutcome(i) {
-  const c = state.dayCourage[i];
-  const box = document.createElement('div');
-  box.className = 'courage-outcome';
-  box.setAttribute('role', 'group');
-  box.setAttribute('aria-label', '結果');
-  for (const o of OUTCOMES) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = `courage-opt is-${o}${c.outcome === o ? ' on' : ''}`;
-    b.setAttribute('aria-pressed', String(c.outcome === o));
-    b.textContent = OUTCOME_LABEL[o];
-    keepFocus(b);
-    b.addEventListener('click', () => {
-      state.dayCourage[i] = { ...state.dayCourage[i], outcome: o };
-      state.dirty = true;
-      flushSave();
-      renderTagRows();
-      renderCourageBar();
-      track('courage_mark', { outcome: o });
-    });
-    box.appendChild(b);
-  }
-  if (c.outcome !== 'no') return box;
+/* 結果視窗：選結果；被拒絕時多一句鼓勵和兩個選填問題。今日頁本身不多加任何東西 */
+let braveRow = null;
 
-  const wrap = document.createElement('div');
-  wrap.appendChild(box);
-  const card = document.createElement('div');
-  card.className = 'courage-card';
-  const sub = document.createElement('p');
-  sub.className = 'courage-card-sub';
-  const head = document.createElement('b');
-  head.className = 'courage-card-head';
-  head.textContent = '又勇敢了一次 💪 ';
-  sub.append(head, comfortLine(state.date, i));
-  card.appendChild(sub);
-  const field = (key, label, placeholder) => {
-    const l = document.createElement('label');
-    l.className = 'courage-field';
-    const t = document.createElement('span');
-    t.textContent = label;
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.maxLength = 300;
-    input.placeholder = placeholder;
-    input.value = c[key] || '';
+function openBrave(i) {
+  const c = state.dayCourage[i];
+  if (!c) return;
+  braveRow = i;
+  $('brave-item').textContent = textareas[i].value.trim();
+  document.querySelectorAll('input[name="brave-outcome"]').forEach((r) => (r.checked = r.value === c.outcome));
+  $('brave-fear').value = c.fear || '';
+  $('brave-next').value = c.next || '';
+  $('brave-comfort').textContent = comfortLine(state.date, i);
+  $('brave-no').hidden = c.outcome !== 'no';
+  $('brave-sheet').hidden = false;
+}
+
+function closeBrave() {
+  if ($('brave-sheet').hidden) return;
+  $('brave-sheet').hidden = true;
+  braveRow = null;
+  flushSave();
+  renderTagRows();
+  renderCourageBar();
+}
+
+function patchBrave(patch) {
+  if (braveRow === null || !state.dayCourage[braveRow]) return;
+  state.dayCourage[braveRow] = { ...state.dayCourage[braveRow], ...patch };
+  state.dirty = true;
+}
+
+function bindBrave() {
+  document.querySelectorAll('input[name="brave-outcome"]').forEach((r) =>
+    r.addEventListener('change', () => {
+      patchBrave({ outcome: r.value });
+      $('brave-no').hidden = r.value !== 'no';
+      flushSave();
+      renderCourageBar();
+      track('courage_mark', { outcome: r.value });
+    }),
+  );
+  for (const key of ['fear', 'next']) {
+    const input = $(`brave-${key}`);
     input.addEventListener('input', () => {
-      state.dayCourage[i] = { ...state.dayCourage[i], [key]: input.value };
+      patchBrave({ [key]: input.value });
       scheduleSave();
     });
-    input.addEventListener('blur', flushSave);
-    l.append(t, input);
-    return l;
-  };
-  card.appendChild(field('fear', '原本擔心的，實際上呢？', '選填'));
-  // 第二題先收起來，想寫再點開（寫過的直接顯示）
-  if (c.next) {
-    card.appendChild(field('next', '下次想怎麼調整？', '選填'));
-  } else {
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'courage-more';
-    more.textContent = '＋ 下次想怎麼調整';
-    keepFocus(more);
-    more.addEventListener('click', () => {
-      const f = field('next', '下次想怎麼調整？', '選填');
-      more.replaceWith(f);
-      f.querySelector('input').focus();
-    });
-    card.appendChild(more);
   }
-  wrap.appendChild(card);
-  return wrap;
+  $('brave-done').addEventListener('click', closeBrave);
+  $('brave-remove').addEventListener('click', () => {
+    if (braveRow !== null) state.dayCourage[braveRow] = null;
+    state.dirty = true;
+    closeBrave();
+  });
+  $('brave-sheet').addEventListener('click', (e) => e.target === e.currentTarget && closeBrave());
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && closeBrave());
 }
 
 /** 今日頁頂端的挑戰進度條 */
@@ -2019,7 +2002,7 @@ function useIdea() {
   activeRow = i;
   renderTagRows();
   textareas[i].focus();
-  toast('加到今天的小成功了。做完再回來點結果 ⚡');
+  toast('加到今天的小成功了。做完再點「勇敢一步」補上結果');
 }
 
 function bindCourage() {
@@ -2032,7 +2015,7 @@ function bindCourage() {
     renderCourageBar();
     renderCouragePanel();
     track(box.checked ? 'courage_on' : 'courage_off', {});
-    toast(box.checked ? '已開啟勇氣練習：寫小成功時可以標成「⚡ 勇敢一步」，回顧頁可以開始挑戰' : '已關閉勇氣練習（紀錄都還在）');
+    toast(box.checked ? '已開啟勇氣練習：寫小成功時可以標成「勇敢一步」，回顧頁可以開始挑戰' : '已關閉勇氣練習（紀錄都還在）');
   });
   $('courage-bar').addEventListener('click', () => showView('calendar'));
   document.querySelectorAll('input[name="idea-level"]').forEach((r) => r.addEventListener('change', drawIdea));
@@ -2040,6 +2023,7 @@ function bindCourage() {
   $('idea-use').addEventListener('click', useIdea);
   $('idea-close').addEventListener('click', () => ($('idea-sheet').hidden = true));
   $('idea-sheet').addEventListener('click', (e) => e.target === e.currentTarget && ($('idea-sheet').hidden = true));
+  bindBrave();
 }
 
 /* ---------- 每日提醒 ---------- */

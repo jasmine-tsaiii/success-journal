@@ -1689,12 +1689,22 @@ test('勇氣練習：開啟後才出現；小成功標成勇敢一步、被拒�
   await page.fill('#item-0', '主動問主管能不能讓我負責新專案');
   await page.click('#tags-0 .courage-chip');
   assert.equal(await page.getAttribute('#tags-0 .courage-chip', 'aria-pressed'), 'true');
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'item-0', '點標籤不會收起鍵盤');
-  await page.click('#tags-0 .courage-opt.is-no');
-  await page.waitForSelector('#tags-0 .courage-card');
-  assert.match(await page.textContent('#tags-0 .courage-card'), /又勇敢了一次 💪[\s\S]*原本擔心的，實際上呢？/);
-  await page.fill('#tags-0 .courage-field input >> nth=0', '怕被覺得太急，其實他只是說現在人手夠');
-  await page.locator('#tags-0 .courage-field input >> nth=0').blur();
+  // 點了打開結果視窗；今日頁本身不多出任何一排
+  await page.waitForSelector('#brave-sheet:not([hidden])');
+  assert.equal(await page.textContent('#brave-item'), '主動問主管能不能讓我負責新專案');
+  assert.equal(await page.isChecked('input[name="brave-outcome"][value="pending"]'), true);
+  assert.equal(await page.isHidden('#brave-no'), true);
+  await page.click('#brave-sheet label:has(input[value="no"])');
+  assert.match(await page.textContent('#brave-no'), /又勇敢了一次 💪[\s\S]*原本擔心的，實際上呢？/);
+  await page.fill('#brave-fear', '怕被覺得太急，其實他只是說現在人手夠');
+  if (SCREENSHOT_DIR) {
+    await page.evaluate(() => document.getElementById('toast').classList.remove('show'));
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '80c-brave-sheet.png'), fullPage: false });
+  }
+  await page.click('#brave-done');
+  assert.equal(await page.isHidden('#brave-sheet'), true);
+  assert.equal(await page.textContent('#tags-0 .courage-chip'), '勇敢一步・被拒絕');
   assert.match(await page.textContent('#courage-bar'), /被拒絕 1\/20/);
   if (SCREENSHOT_DIR) {
     await page.evaluate(() => document.getElementById('toast').classList.remove('show'));

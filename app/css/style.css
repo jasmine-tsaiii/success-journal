@@ -3063,60 +3063,41 @@ a.set-row[hidden] {
   letter-spacing: 0.04em;
 }
 
-/* 結果：一條細的分段按鈕 */
-.courage-outcome {
-  display: inline-flex;
-  margin-top: 10px;
-  border: 1px solid var(--rule);
+/* 勇敢一步的結果視窗 */
+.brave-item {
+  margin: -4px 0 14px;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
-.courage-opt {
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12.5px;
-  letter-spacing: 0.04em;
-  padding: 3px 12px;
-  cursor: pointer;
+.brave-outcomes.segmented {
+  margin-bottom: 4px;
 }
 
-.courage-opt + .courage-opt {
-  border-left: 1px solid var(--rule);
-}
-
-.courage-opt.on {
-  background: var(--ink);
-  color: var(--on-ink);
-}
-
-.courage-opt.is-no.on {
+.brave-outcomes input[value='no']:checked + span {
   background: var(--accent);
+  border-color: var(--accent);
 }
 
-.courage-opt:focus-visible,
-.courage-more:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.brave-no {
+  margin-top: 14px;
+  text-align: left;
 }
 
-/* 被拒絕：一句鼓勵＋選填欄位，不加框 */
-.courage-card {
-  margin-top: 10px;
+.brave-no[hidden] {
+  display: none;
 }
 
-.courage-card p {
-  margin: 0;
-}
-
-.courage-card-sub {
-  font-size: 13px;
+.brave-cheer {
+  margin: 0 0 6px;
+  font-size: 13.5px;
   line-height: 1.7;
   color: var(--ink-2);
 }
 
-.courage-card-head {
-  font-weight: 700;
+.brave-cheer b {
+  display: block;
   color: var(--accent);
 }
 
@@ -3152,16 +3133,6 @@ a.set-row[hidden] {
   border-bottom-color: var(--accent);
 }
 
-.courage-more {
-  margin-top: 8px;
-  border: 0;
-  background: none;
-  padding: 2px 0;
-  font: inherit;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-}
 
 /* 今日頁頂端的挑戰進度 */
 .courage-bar {
