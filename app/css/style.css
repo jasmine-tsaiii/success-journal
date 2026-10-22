@@ -3047,14 +3047,13 @@ a.set-row[hidden] {
 
 /* ---------- 勇氣練習 ---------- */
 .courage-chip {
-  border-color: var(--accent);
   color: var(--accent);
 }
 
 .courage-chip.on {
-  background: var(--accent);
   border-color: var(--accent);
-  color: var(--paper);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
 }
 
 .courage-badge {
@@ -3064,62 +3063,61 @@ a.set-row[hidden] {
   letter-spacing: 0.04em;
 }
 
+/* 結果：一條細的分段按鈕 */
 .courage-outcome {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.courage-outcome-lead {
-  font-size: 12px;
-  color: var(--muted);
-  margin-right: 2px;
+  display: inline-flex;
+  margin-top: 10px;
+  border: 1px solid var(--rule);
 }
 
 .courage-opt {
-  border: 1px solid var(--rule);
+  border: 0;
   background: none;
-  color: var(--ink-2);
+  color: var(--muted);
   font: inherit;
   font-size: 12.5px;
-  padding: 2px 9px;
+  letter-spacing: 0.04em;
+  padding: 3px 12px;
   cursor: pointer;
 }
 
+.courage-opt + .courage-opt {
+  border-left: 1px solid var(--rule);
+}
+
 .courage-opt.on {
-  border-color: var(--ink);
   background: var(--ink);
-  color: var(--paper);
+  color: var(--on-ink);
 }
 
 .courage-opt.is-no.on {
-  border-color: var(--accent);
   background: var(--accent);
 }
 
+.courage-opt:focus-visible,
+.courage-more:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 被拒絕：一句鼓勵＋選填欄位，不加框 */
 .courage-card {
   margin-top: 10px;
-  padding: 12px 14px;
-  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
-  border-left: 3px solid var(--accent);
 }
 
 .courage-card p {
   margin: 0;
 }
 
-.courage-card-head {
-  font-size: 14.5px;
-  font-weight: 700;
-  color: var(--ink);
+.courage-card-sub {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-2);
 }
 
-.courage-card-sub {
-  font-size: 12.5px;
-  color: var(--ink-2);
-  margin: 2px 0 8px !important;
+.courage-card-head {
+  font-weight: 700;
+  color: var(--accent);
 }
 
 .courage-field {
@@ -3131,7 +3129,6 @@ a.set-row[hidden] {
   display: block;
   font-size: 12px;
   color: var(--muted);
-  margin-bottom: 2px;
 }
 
 .courage-field input {
@@ -3143,12 +3140,27 @@ a.set-row[hidden] {
   font: inherit;
   font-family: var(--sans, inherit);
   font-size: 14px;
-  padding: 4px 0;
+  padding: 3px 0;
+}
+
+.courage-field input::placeholder {
+  color: color-mix(in srgb, var(--muted) 60%, transparent);
 }
 
 .courage-field input:focus {
   outline: none;
   border-bottom-color: var(--accent);
+}
+
+.courage-more {
+  margin-top: 8px;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
 }
 
 /* 今日頁頂端的挑戰進度 */

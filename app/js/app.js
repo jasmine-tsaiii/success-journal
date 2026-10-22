@@ -1682,14 +1682,14 @@ function setChallenge(c, { fromSync = false } = {}) {
   renderCouragePanel();
 }
 
-/** 標籤列最前面的「⚡ 勇敢一步」 */
+/** 標籤列最前面的「勇敢一步」 */
 function courageChip(i) {
   const b = document.createElement('button');
   b.type = 'button';
   const on = Boolean(state.dayCourage[i]);
   b.className = `tag-chip courage-chip${on ? ' on' : ''}`;
   b.setAttribute('aria-pressed', String(on));
-  b.textContent = '⚡ 勇敢一步';
+  b.textContent = on ? '勇敢一步 ✓' : '勇敢一步';
   keepFocus(b);
   b.addEventListener('click', () => {
     state.dayCourage[i] = state.dayCourage[i] ? null : { outcome: 'pending', fear: '', next: '' };
@@ -1702,29 +1702,27 @@ function courageChip(i) {
   return b;
 }
 
-/** 沒在寫的那幾件：小字顯示「⚡ 被拒絕」 */
+/** 沒在寫的那幾件：小字顯示「勇敢一步・被拒絕」 */
 function courageBadge(c) {
   const span = document.createElement('span');
   span.className = `courage-badge is-${c.outcome}`;
-  span.textContent = `⚡ ${OUTCOME_ICON[c.outcome]} ${OUTCOME_LABEL[c.outcome]}`;
+  span.textContent = `勇敢一步・${OUTCOME_LABEL[c.outcome]}`;
   return span;
 }
 
-/** 結果三選一；被拒絕時展開一張小卡 */
+/** 結果三選一（一條細的分段按鈕）；被拒絕時下面多一句鼓勵和一個選填欄位 */
 function courageOutcome(i) {
   const c = state.dayCourage[i];
   const box = document.createElement('div');
   box.className = 'courage-outcome';
-  const lead = document.createElement('span');
-  lead.className = 'courage-outcome-lead';
-  lead.textContent = '結果';
-  box.appendChild(lead);
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', '結果');
   for (const o of OUTCOMES) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = `courage-opt is-${o}${c.outcome === o ? ' on' : ''}`;
     b.setAttribute('aria-pressed', String(c.outcome === o));
-    b.textContent = `${OUTCOME_ICON[o]} ${OUTCOME_LABEL[o]}`;
+    b.textContent = OUTCOME_LABEL[o];
     keepFocus(b);
     b.addEventListener('click', () => {
       state.dayCourage[i] = { ...state.dayCourage[i], outcome: o };
@@ -1742,14 +1740,13 @@ function courageOutcome(i) {
   wrap.appendChild(box);
   const card = document.createElement('div');
   card.className = 'courage-card';
-  const p = progressNow();
-  const head = document.createElement('p');
-  head.className = 'courage-card-head';
-  head.textContent = '又勇敢了一次 💪';
   const sub = document.createElement('p');
   sub.className = 'courage-card-sub';
-  sub.textContent = `${p && !p.finished ? `離挑戰目標又近一步：${p.no} / ${p.target}。` : '你踏出去了。'}${comfortLine(state.date, i)}`;
-  card.append(head, sub);
+  const head = document.createElement('b');
+  head.className = 'courage-card-head';
+  head.textContent = '又勇敢了一次 💪 ';
+  sub.append(head, comfortLine(state.date, i));
+  card.appendChild(sub);
   const field = (key, label, placeholder) => {
     const l = document.createElement('label');
     l.className = 'courage-field';
@@ -1768,10 +1765,23 @@ function courageOutcome(i) {
     l.append(t, input);
     return l;
   };
-  card.append(
-    field('fear', '我原本擔心會怎樣？實際上呢？', '例如：怕被討厭，其實對方很客氣'),
-    field('next', '下次想怎麼調整？（選填）', '例如：先說明原因再開口'),
-  );
+  card.appendChild(field('fear', '原本擔心的，實際上呢？', '選填'));
+  // 第二題先收起來，想寫再點開（寫過的直接顯示）
+  if (c.next) {
+    card.appendChild(field('next', '下次想怎麼調整？', '選填'));
+  } else {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'courage-more';
+    more.textContent = '＋ 下次想怎麼調整';
+    keepFocus(more);
+    more.addEventListener('click', () => {
+      const f = field('next', '下次想怎麼調整？', '選填');
+      more.replaceWith(f);
+      f.querySelector('input').focus();
+    });
+    card.appendChild(more);
+  }
   wrap.appendChild(card);
   return wrap;
 }

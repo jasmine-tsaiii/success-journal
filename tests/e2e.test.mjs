@@ -1692,7 +1692,7 @@ test('勇氣練習：開啟後才出現；小成功標成勇敢一步、被拒�
   assert.equal(await page.evaluate(() => document.activeElement.id), 'item-0', '點標籤不會收起鍵盤');
   await page.click('#tags-0 .courage-opt.is-no');
   await page.waitForSelector('#tags-0 .courage-card');
-  assert.match(await page.textContent('#tags-0 .courage-card'), /又勇敢了一次 💪[\s\S]*離挑戰目標又近一步：1 \/ 20/);
+  assert.match(await page.textContent('#tags-0 .courage-card'), /又勇敢了一次 💪[\s\S]*原本擔心的，實際上呢？/);
   await page.fill('#tags-0 .courage-field input >> nth=0', '怕被覺得太急，其實他只是說現在人手夠');
   await page.locator('#tags-0 .courage-field input >> nth=0').blur();
   assert.match(await page.textContent('#courage-bar'), /被拒絕 1\/20/);
@@ -1705,7 +1705,7 @@ test('勇氣練習：開啟後才出現；小成功標成勇敢一步、被拒�
   }
   // 沒在寫時顯示小字
   await page.click('.prompt .label-caps');
-  assert.match(await page.textContent('#tags-0'), /⚡ ✗ 被拒絕/);
+  assert.match(await page.textContent('#tags-0'), /勇敢一步・被拒絕/);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.entries.v1'))['2026-10-01']);
   assert.deepEqual(saved.courage[0], { outcome: 'no', fear: '怕被覺得太急，其實他只是說現在人手夠', next: '' });
 
