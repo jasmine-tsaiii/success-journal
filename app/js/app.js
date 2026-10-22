@@ -44,7 +44,8 @@ import { isStorageAvailable, loadEntries, loadSettings, loadTagList, loadThanksL
 import { initBoards } from './board-ui.js';
 import { canvasToBlob, renderDayCard, renderInviteCard, renderThanksCard, shareBackup, shareOrDownload } from './share.js';
 import { parseRef, shareLink, stripUtm } from './ref.js';
-import { initAnalytics, setAnalyticsAllowed, track, trackView } from './analytics.js';
+import { initAnalytics, setAnalyticsAllowed, setUserProperties, track, trackView } from './analytics.js';
+import { detectPlatform, installNudge } from './install-core.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
@@ -371,6 +372,7 @@ function showView(name, { updateHash = true } = {}) {
   window.scrollTo({ top: 0 });
   trackView(name, firstHref);
   firstHref = null;
+  maybeFirstDayInstall();
 }
 
 /** 剛打開時的完整網址（含 UTM），第一次記錄分頁瀏覽時使用 */
@@ -497,7 +499,10 @@ function flushSave() {
     setSaveStatus(state.entries[key] ? savedText(state.entries[key].updatedAt) : '已清空這一天的紀錄');
   }
   // 這一天開始有紀錄（只記有沒有寫，不傳內容）
-  if (!hadRecord && state.entries[key]) track('write_entry', { day: key === todayKey() ? 'today' : 'other' });
+  if (!hadRecord && state.entries[key]) {
+    track('write_entry', { day: key === todayKey() ? 'today' : 'other' });
+    if (recordedDayCount() === 1) firstDayPending = true;
+  }
 }
 
 /* ---------- 標籤（今日頁） ---------- */
@@ -1363,19 +1368,265 @@ async function importJson(file) {
   }
 }
 
-/* ---------- 安裝到主畫面 ---------- */
+/* ---------- 加到主畫面 ---------- */
 
-let deferredPrompt = null;
+const PLATFORM = detectPlatform(navigator.userAgent, navigator.maxTouchPoints || 0);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const SITE = 'https://success.jas-soul.com/';
+
+let deferredPrompt = null; // Android／電腦 Chrome 可以直接跳出安裝視窗
+let installedApp = false; // Android 偵測到已經裝在主畫面
+let firstDayPending = false; // 剛寫完第一天，等使用者停下來再顯示說明
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  $('install-btn').hidden = false;
 });
 window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
-  $('install-btn').hidden = true;
-  toast('已加到主畫面');
+  markInstalled('prompt');
+  closeInstall();
+  toast('已加到主畫面，之後從主畫面打開就好');
 });
+
+const installState = () => state.settings.install || {};
+function saveInstall(patch) {
+  state.settings = { ...state.settings, install: { ...installState(), ...patch } };
+  saveSettings(state.settings);
+}
+
+function markInstalled(method) {
+  if (!installState().done) track('install_done', { platform: PLATFORM, method });
+  saveInstall({ done: true });
+  $('install-bar').hidden = true;
+  renderLoginBar();
+}
+
+const recordedDayCount = () => Object.keys(state.entries).filter((k) => hasRecord(state.entries[k])).length;
+
+function inAppName() {
+  const ua = navigator.userAgent;
+  if (/\bLine\//i.test(ua)) return 'LINE';
+  if (/Instagram/i.test(ua)) return 'Instagram';
+  if (/Threads/i.test(ua)) return 'Threads';
+  if (/FBAN|FBAV|FB_IAB|Messenger/i.test(ua)) return 'Facebook';
+  return 'App';
+}
+
+const ICON = {
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" /><path d="M8 10H5.5v10.5h13V10H16" /></svg>',
+  add: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5" /><path d="M12 8v8M8 12h8" /></svg>',
+  dots: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5.5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="18.5" r="1.6" /></svg>',
+  more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5.5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="18.5" cy="12" r="1.6" /></svg>',
+  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>',
+};
+
+/** 每個平台的說明：步驟（[圖示, 文字]）、補充、主要按鈕 */
+function installGuide(kind) {
+  const loggedIn = Boolean(cloud.getSession());
+  const dataNote = '小提醒：iPhone 主畫面上的成功日記，和瀏覽器裡的是分開存的。先到「設定」用 Google 登入，加好之後在主畫面版再登入一次，寫過的日記就會跟過去。';
+  if (kind === 'open-app') {
+    return {
+      lead: '成功日記已經在你的主畫面了。之後直接點主畫面的圖示打開，就像一般的 App。',
+      steps: [],
+      primary: { label: '知道了', action: 'done' },
+    };
+  }
+  if (PLATFORM === 'inapp') {
+    const app = inAppName();
+    return {
+      lead: `你現在是在 ${app} 裡面打開的，這裡沒辦法加到主畫面。換到手機的瀏覽器打開就可以了：`,
+      steps: [
+        [ICON.more, `點 ${app} 畫面右上角（或右下角）的「⋯」`],
+        [ICON.share, '選「用瀏覽器開啟」或「在 Safari 中開啟」'],
+        [ICON.add, '在瀏覽器裡，再照提示加到主畫面'],
+      ],
+      note: loggedIn ? '' : `在 ${app} 裡寫的日記只會留在 ${app} 裡。先到「設定」用 Google 登入，換到瀏覽器後再登入一次，日記就會同步過去。`,
+      primary: { label: '複製網址', action: 'copy' },
+      later: '之後再說',
+    };
+  }
+  if (PLATFORM === 'ios-safari') {
+    return {
+      steps: [
+        [ICON.share, '點畫面下方的「分享」按鈕（iPad 在右上角）'],
+        [ICON.add, '往下滑，點「加入主畫面」'],
+        [ICON.check, '點右上角「加入」，主畫面就會出現成功日記'],
+      ],
+      note: loggedIn ? '' : dataNote,
+      primary: { label: '我加好了', action: 'done' },
+      secondary: loggedIn ? null : { label: '先去登入', action: 'login' },
+    };
+  }
+  if (PLATFORM === 'ios-other') {
+    return {
+      steps: [
+        [ICON.share, '點網址列旁的「分享」按鈕'],
+        [ICON.add, '點「加入主畫面」'],
+        [ICON.check, '點「加入」，主畫面就會出現成功日記'],
+      ],
+      note: `${loggedIn ? '' : `${dataNote}\n`}如果找不到「加入主畫面」，請改用 Safari 打開這個網址。`,
+      primary: { label: '我加好了', action: 'done' },
+      secondary: { label: '複製網址', action: 'copy' },
+    };
+  }
+  if (PLATFORM === 'android') {
+    if (deferredPrompt) return { steps: [], primary: { label: '加到主畫面', action: 'prompt' } };
+    return {
+      steps: [
+        [ICON.dots, '點瀏覽器右上角的「⋮」'],
+        [ICON.add, '選「加到主畫面」或「安裝應用程式」'],
+        [ICON.check, '點「安裝」或「新增」，主畫面就會出現成功日記'],
+      ],
+      primary: { label: '我加好了', action: 'done' },
+    };
+  }
+  // 電腦
+  if (deferredPrompt) return { lead: '也可以安裝到電腦，像一般程式一樣打開。最推薦的還是加到手機主畫面，每天寫最方便。', steps: [], primary: { label: '安裝到這台電腦', action: 'prompt' }, secondary: { label: '複製網址', action: 'copy' } };
+  return { lead: `用手機打開 ${SITE.replace('https://', '').replace(/\/$/, '')}，再加到主畫面，每天寫最方便。`, steps: [], primary: { label: '複製網址', action: 'copy' } };
+}
+
+let installKind = null;
+
+function openInstall(kind = 'guide', source = 'settings') {
+  installKind = kind;
+  const g = installGuide(kind);
+  const first = kind === 'sheet';
+  $('install-kicker').textContent = first ? 'Day 1 · Done' : kind === 'open-app' ? 'Already Installed' : 'Add to Home Screen';
+  $('install-title').textContent = first ? '第一天寫好了！' : kind === 'open-app' ? '從主畫面打開' : '把成功日記放到主畫面';
+  $('install-lead').textContent =
+    g.lead || (first ? '把成功日記放到手機主畫面，明天一點就能接著寫。每天的小成功，就從打開它開始。' : '放到主畫面，每天一點就能打開，就像一般的 App。');
+  const list = $('install-steps');
+  list.textContent = '';
+  for (const [icon, text] of g.steps) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="install-step-icon">${icon}</span><span class="install-step-text"></span>`;
+    li.lastElementChild.textContent = text;
+    list.appendChild(li);
+  }
+  list.hidden = !g.steps.length;
+  $('install-note').textContent = g.note || '';
+  $('install-note').hidden = !g.note;
+  const primary = $('install-primary');
+  primary.textContent = g.primary.label;
+  primary.dataset.action = g.primary.action;
+  const second = $('install-secondary');
+  second.hidden = !g.secondary;
+  if (g.secondary) {
+    second.textContent = g.secondary.label;
+    second.dataset.action = g.secondary.action;
+  }
+  $('install-later').textContent = g.later || (g.primary.action === 'done' ? '之後再說' : '關閉');
+  $('install-sheet').hidden = false;
+  primary.focus({ preventScroll: true });
+  track('install_guide', { platform: PLATFORM, source, kind });
+}
+
+function closeInstall() {
+  $('install-sheet').hidden = true;
+}
+
+async function installAction(action) {
+  if (action === 'prompt' && deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    if (outcome !== 'accepted') closeInstall();
+    return; // 接受後會收到 appinstalled
+  }
+  if (action === 'copy') {
+    const ok = await copyText(SITE);
+    toast(ok ? '已複製網址，貼到瀏覽器打開就可以了' : SITE);
+    return;
+  }
+  if (action === 'login') {
+    closeInstall();
+    showView('data');
+    return;
+  }
+  // done
+  closeInstall();
+  markInstalled(installKind === 'open-app' ? 'already' : 'manual');
+  toast(installKind === 'open-app' ? '之後從主畫面打開就好' : '太好了！之後從主畫面打開成功日記就好');
+}
+
+/** 今日頁上方的小提醒 */
+function showInstallBar(kind) {
+  const text = $('install-bar-text');
+  text.innerHTML =
+    kind === 'open-app'
+      ? '<b>從主畫面打開</b>　成功日記已經在你的主畫面了'
+      : PLATFORM === 'inapp'
+        ? '<b>用瀏覽器打開</b>　才能加到主畫面、好好保存日記'
+        : '<b>加到主畫面</b>　每天一點就能寫，不用再找網址';
+  $('install-bar').dataset.kind = kind;
+  $('install-bar').hidden = false;
+  renderLoginBar();
+  track('install_nudge', { platform: PLATFORM, kind });
+}
+
+function nudgeInstall({ firstDayDone = false } = {}) {
+  const kind = installNudge({
+    platform: PLATFORM,
+    standalone: isStandalone(),
+    installedApp,
+    install: installState(),
+    recordedDays: recordedDayCount(),
+    today: todayKey(),
+    firstDayDone,
+  });
+  if (!kind) return false;
+  saveInstall({ shownDay: todayKey(), shows: (installState().shows || 0) + 1 });
+  if (kind === 'sheet') openInstall('sheet', 'first_day');
+  else showInstallBar(kind);
+  return true;
+}
+
+/** 剛寫完第一天：等使用者停下來（離開輸入框一會兒、或切換分頁）再顯示說明，不打斷書寫 */
+function maybeFirstDayInstall() {
+  if (!firstDayPending) return;
+  const el = document.activeElement;
+  if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return;
+  if (!$('share-sheet').hidden || !$('onboarding').hidden) return;
+  firstDayPending = false;
+  nudgeInstall({ firstDayDone: true });
+}
+
+async function detectInstall() {
+  const standalone = isStandalone();
+  setUserProperties({ display_mode: standalone ? 'standalone' : 'browser', platform: PLATFORM });
+  if (standalone) {
+    // 從主畫面打開：記下來（Android 的瀏覽器和主畫面共用資料，之後在瀏覽器打開也不會再提醒）
+    if (!installState().done) saveInstall({ done: true });
+    return;
+  }
+  // Android Chrome：可以查到這個網站是不是已經裝在主畫面
+  if (navigator.getInstalledRelatedApps) {
+    try {
+      installedApp = (await navigator.getInstalledRelatedApps()).length > 0;
+    } catch {
+      /* 忽略 */
+    }
+  }
+  nudgeInstall();
+}
+
+function bindInstall() {
+  $('install-btn').hidden = isStandalone();
+  $('install-btn').addEventListener('click', () => openInstall('guide', 'settings'));
+  $('install-bar-open').addEventListener('click', () => openInstall($('install-bar').dataset.kind === 'open-app' ? 'open-app' : 'guide', 'banner'));
+  $('install-bar-close').addEventListener('click', () => {
+    $('install-bar').hidden = true;
+    renderLoginBar();
+  });
+  $('install-primary').addEventListener('click', () => installAction($('install-primary').dataset.action));
+  $('install-secondary').addEventListener('click', () => installAction($('install-secondary').dataset.action));
+  $('install-later').addEventListener('click', closeInstall);
+  $('install-sheet').addEventListener('click', (e) => e.target === e.currentTarget && closeInstall());
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && !$('install-sheet').hidden && closeInstall());
+  document.addEventListener('focusout', () => setTimeout(maybeFirstDayInstall, 1200));
+  detectInstall();
+}
 
 /* ---------- 綁定事件 ---------- */
 
@@ -1432,13 +1683,6 @@ function bind() {
   $('import-file').addEventListener('change', async (e) => {
     await importJson(e.target.files[0]);
     e.target.value = '';
-  });
-  $('install-btn').addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    $('install-btn').hidden = true;
   });
 
   // 離開頁面或切到背景時，立即存檔
@@ -1615,7 +1859,8 @@ function renderCloud() {
 
 /** 今日頁頂端：沒登入時提醒，避免以為資料不見了 */
 function renderLoginBar() {
-  $('login-bar').hidden = !cloud.cloudConfigured() || Boolean(cloud.getSession());
+  // 兩個提醒不同時出現：「加到主畫面」關掉後才顯示登入提醒
+  $('login-bar').hidden = !cloud.cloudConfigured() || Boolean(cloud.getSession()) || !$('install-bar').hidden;
 }
 
 let buttonShown = false;
@@ -1855,6 +2100,7 @@ function init() {
   bindDisplayName();
   bindJar();
   bindAbout();
+  bindInstall();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }

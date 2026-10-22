@@ -41,7 +41,7 @@
     // 版本檢查：頁面一定是最新的，但舊版的離線快取可能給了舊程式（畫面會少東西）。
     // 發現程式版本和頁面不同時，清掉舊快取、更新 Service Worker，重新載入一次。
     (function () {
-      var PAGE_VERSION = 'v30';
+      var PAGE_VERSION = 'v31';
       window.addEventListener('load', function () {
         if (window.__SJ_APP === PAGE_VERSION) return;
         try {
@@ -87,6 +87,14 @@
         <p class="chakra-theme" id="chakra-theme"></p>
       </article>
 
+      <div class="install-bar" id="install-bar" hidden>
+        <button type="button" class="install-bar-main" id="install-bar-open">
+          <span class="install-bar-icon" aria-hidden="true"><img src="icons/app-favicon-64.png" alt=""></span>
+          <span class="install-bar-text" id="install-bar-text"><b>加到主畫面</b>　每天一點就能寫，不用再找網址</span>
+          <span class="set-arrow" aria-hidden="true">→</span>
+        </button>
+        <button type="button" class="install-bar-close" id="install-bar-close" aria-label="這次先不要">×</button>
+      </div>
       <button type="button" class="login-bar" id="login-bar" data-goto="data" hidden>
         <span class="login-bar-dot" aria-hidden="true"></span>
         <span class="login-bar-text"><b>尚未登入</b>　日記只在這台裝置。登入 Google 帳號，找回並同步你的日記</span>
@@ -396,26 +404,12 @@
           <span class="set-arrow" aria-hidden="true">→</span>
         </button>
         <button type="button" class="set-row set-link" id="install-btn" hidden>
-          <span class="set-title">安裝到主畫面</span>
+          <span class="set-main">
+            <span class="set-title">加到手機主畫面</span>
+            <span class="set-sub">每天一點就能打開，就像一般的 App</span>
+          </span>
           <span class="set-arrow" aria-hidden="true">→</span>
         </button>
-        <details class="set-row-details">
-          <summary class="set-row"><span class="set-title">加到手機主畫面</span><span class="set-arrow" aria-hidden="true">＋</span></summary>
-          <div class="set-detail-body">
-            <p class="sub-title">iPhone／iPad（Safari）</p>
-            <ol class="steps">
-              <li>用 Safari 開啟這個網頁。</li>
-              <li>點下方的「分享」按鈕（方框加向上箭頭）。</li>
-              <li>選擇「加入主畫面」，再點「新增」。</li>
-            </ol>
-            <p class="sub-title">Android（Chrome）</p>
-            <ol class="steps">
-              <li>用 Chrome 開啟這個網頁。</li>
-              <li>點右上角「⋮」選單。</li>
-              <li>選擇「安裝應用程式」或「加到主畫面」。</li>
-            </ol>
-          </div>
-        </details>
         <details class="set-row-details">
           <summary class="set-row"><span class="set-title">關於每天的色彩</span><span class="set-arrow" aria-hidden="true">＋</span></summary>
           <div class="set-detail-body">
@@ -492,6 +486,24 @@
     </div>
   </div>
 
+
+  <div class="share-sheet install-sheet" id="install-sheet" role="dialog" aria-modal="true" aria-labelledby="install-title" hidden>
+    <div class="install-inner">
+      <img class="install-app-icon" src="icons/app-icon-192.png" alt="" width="72" height="72">
+      <p class="label-caps" id="install-kicker">Add to Home Screen</p>
+      <h2 class="install-title" id="install-title">把成功日記放到主畫面</h2>
+      <p class="install-lead" id="install-lead">放到主畫面，每天一點就能打開，就像一般的 App。</p>
+
+      <ol class="install-steps" id="install-steps"></ol>
+      <p class="install-note" id="install-note" hidden></p>
+
+      <div class="install-actions">
+        <button type="button" class="btn btn-primary" id="install-primary">我加好了</button>
+        <button type="button" class="btn" id="install-secondary" hidden>複製網址</button>
+        <button type="button" class="text-btn" id="install-later">之後再說</button>
+      </div>
+    </div>
+  </div>
   <div class="share-sheet" id="share-sheet" role="dialog" aria-modal="true" aria-labelledby="share-title" hidden>
     <div class="share-inner">
       <h2 class="visually-hidden" id="share-title">分享預覽</h2>
