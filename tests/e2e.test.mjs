@@ -100,7 +100,7 @@ const shot = async (page, name) => {
 
 test('首頁顯示當日脈輪、引導問題、肯定語與隱私說明', async () => {
   const { context, page, errors } = await newPage();
-  assert.equal(await page.title(), '成功日記');
+  assert.match(await page.title(), /^成功日記｜/);
   assert.equal(await page.textContent('#current-date-text'), '2026.10.01');
   assert.equal(await page.textContent('#current-week'), 'Thu · 週四');
   assert.equal(await page.textContent('#issue-no'), 'No.274');
