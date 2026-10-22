@@ -1,7 +1,7 @@
 // 成功日記 Service Worker：預先快取 App 外殼，離線也能開啟。
 // 更新網站檔案後，請把 VERSION 加一，讓使用者取得新版。
 
-const VERSION = 'v31';
+const VERSION = 'v32';
 const CACHE = `success-journal-${VERSION}`;
 
 const ASSETS = [
@@ -21,6 +21,7 @@ const ASSETS = [
   './js/ref.js',
   './js/analytics.js',
   './js/install-core.js',
+  './js/reminders.js',
   './js/config.js',
   './js/version.js',
   './js/cloud.js',
@@ -135,5 +136,43 @@ self.addEventListener('fetch', (event) => {
         .catch(() => cached);
       return cached || network;
     }),
+  );
+});
+
+/* ---------- 每日提醒（推播） ---------- */
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || '成功日記', {
+      body: data.body || '今天有什麼小成功？再小的事都算數 🌱',
+      icon: './icons/app-icon-192.png',
+      badge: './icons/app-favicon-64.png',
+      tag: 'daily-reminder',
+      data: { url: data.url || './' },
+    }),
+  );
+});
+
+// 點通知：已經開著就切回來並打開今日頁，沒開就打開
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || './', self.registration.scope).href;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const open = windows.find((c) => c.url.startsWith(self.registration.scope));
+      if (open) {
+        await open.focus();
+        open.postMessage({ type: 'open-today' });
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
   );
 });

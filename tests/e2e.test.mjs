@@ -655,6 +655,7 @@ function fakeCloud() {
   const photos = new Map(); // path → { body, type }
   const users = new Map(); // uid → email
   const admins = new Set(); // 可以看統計的 email
+  const pushCalls = []; // 每日提醒的 API 呼叫
   let tick = Date.parse('2026-10-01T00:00:00Z');
   const nextSyncedAt = () => new Date((tick += 1000)).toISOString().replace('Z', '+00:00');
   const cors = {
@@ -699,6 +700,10 @@ function fakeCloud() {
       return users.has(id) ? json(route, 200, session(users.get(id))) : json(route, 400, { msg: 'invalid refresh token' });
     }
     if (path === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
+    if (path.startsWith('/rest/v1/rpc/sj_push_')) {
+      pushCalls.push({ name: path.split('/').pop(), args: req.postDataJSON(), uid: uidOf(req) || null });
+      return route.fulfill({ status: 204, headers: cors });
+    }
     const uid = uidOf(req);
     if (!users.has(uid)) return json(route, 401, { message: 'JWT expired' });
     if (path === '/auth/v1/user') {
@@ -766,6 +771,7 @@ function fakeCloud() {
     users,
     meta,
     admins,
+    pushCalls,
     async attach(context) {
       await context.route('https://accounts.google.com/gsi/client', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'text/javascript' }, body: gsi }));
       await context.route(/^https:\/\/[a-z0-9]+\.supabase\.co\//, handle);
@@ -1553,6 +1559,100 @@ test('加到主畫面：電腦上不主動提醒', async () => {
   await page.waitForTimeout(1600);
   assert.equal(await page.isHidden('#install-sheet'), true);
   assert.equal(await page.isHidden('#install-bar'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+/** 模擬瀏覽器的通知權限與推播訂閱（測試環境沒有真的推播服務） */
+async function fakePush(page, { permission = 'granted' } = {}) {
+  await page.addInitScript((perm) => {
+    let current = 'default';
+    Object.defineProperty(Notification, 'permission', { get: () => current });
+    Notification.requestPermission = async () => (current = perm);
+    const sub = { endpoint: 'https://push.example/device-1', toJSON: () => ({ endpoint: 'https://push.example/device-1', keys: { p256dh: 'P256', auth: 'AUTH' } }), unsubscribe: async () => true };
+    let subscribed = false;
+    PushManager.prototype.getSubscription = async () => (subscribed ? sub : null);
+    PushManager.prototype.subscribe = async () => ((subscribed = true), sub);
+  }, permission);
+}
+
+test('每日提醒：從主畫面寫完今天後詢問；選時間開啟；當天寫過會告知；設定頁可改時間、關閉', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server, userAgent: IPHONE_SAFARI });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  await fakePush(page);
+  await page.reload();
+
+  await page.fill('#item-0', '早上喝了一杯溫水');
+  await page.click('.prompt .label-caps');
+  await page.waitForSelector('#reminder-sheet:not([hidden])');
+  assert.equal(await page.textContent('#reminder-title'), '要不要每天提醒你？');
+  const options = await page.locator('#reminder-times-sheet .reminder-time').allTextContents();
+  assert.deepEqual(options, ['傍晚17:00', '晚上21:00', '睡前23:00']);
+  assert.equal(await page.getAttribute('#reminder-times-sheet .reminder-time.on', 'aria-pressed'), 'true');
+  assert.match(await page.textContent('#reminder-times-sheet .reminder-time.on'), /21:00/, '預設晚上 21:00');
+  await page.click('#reminder-times-sheet .reminder-time >> text=23:00');
+  if (SCREENSHOT_DIR) {
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: join(SCREENSHOT_DIR, '74-reminder-ask.png') });
+  }
+  await page.click('#reminder-yes');
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_save'), '存到資料庫');
+  const save = server.pushCalls.find((c) => c.name === 'sj_push_save');
+  assert.deepEqual([save.args.p_endpoint, save.args.p_remind_at, save.args.p_p256dh, save.args.p_auth], ['https://push.example/device-1', '23:00', 'P256', 'AUTH']);
+  assert.ok(save.args.p_tz);
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_wrote'), '今天已經寫了，今天不提醒');
+  const r = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).reminder);
+  assert.deepEqual([r.on, r.time, r.asked], [true, '23:00', true]);
+
+  // 不會再問第二次
+  await page.fill('#item-1', '第二件');
+  await page.click('.prompt .label-caps');
+  await page.waitForTimeout(1800);
+  assert.equal(await page.isHidden('#reminder-sheet'), true);
+
+  // 設定頁：顯示已開啟、23:00；改成自訂 07:30；關閉
+  await page.click('#tab-data');
+  assert.equal(await page.isChecked('#reminder-on'), true);
+  assert.match(await page.textContent('#reminder-times-settings .reminder-time.on'), /23:00/);
+  if (SCREENSHOT_DIR) await page.locator('#reminder-on').locator('xpath=ancestor::section[1]').screenshot({ path: join(SCREENSHOT_DIR, '75-reminder-settings.png') });
+  const before = server.pushCalls.length;
+  await page.fill('#reminder-times-settings .reminder-custom', '19:30');
+  await expectEventually(() => server.pushCalls.slice(before).some((c) => c.name === 'sj_push_save' && c.args.p_remind_at === '19:30'), '改時間');
+  await page.click('label:has(#reminder-on)');
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_delete'), '關閉後刪除');
+  assert.equal(await page.isHidden('#reminder-time-row'), true);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('每日提醒：iPhone 在 Safari 裡（還沒加到主畫面）時，說明要先加到主畫面', async () => {
+  const { context, page, errors } = await newPage({ userAgent: IPHONE_SAFARI });
+  await page.click('#tab-data');
+  assert.equal(await page.isDisabled('#reminder-on'), true);
+  assert.match(await page.textContent('#reminder-note'), /iPhone 需要先把成功日記加到主畫面/);
+  await page.click('#reminder-install');
+  await page.waitForSelector('#install-sheet:not([hidden])');
+  assert.equal(await page.textContent('#install-title'), '把成功日記放到主畫面');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('每日提醒：不允許通知時會說明，不會一直問', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server, userAgent: IPHONE_SAFARI });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  await fakePush(page, { permission: 'denied' });
+  await page.reload();
+  await page.fill('#item-0', '第一件');
+  await page.click('.prompt .label-caps');
+  await page.waitForSelector('#reminder-sheet:not([hidden])');
+  await page.click('#reminder-yes');
+  await page.waitForFunction(() => /沒有開啟通知權限/.test(document.getElementById('toast').textContent));
+  assert.equal(server.pushCalls.length, 0);
+  await page.click('#tab-data');
+  assert.equal(await page.isChecked('#reminder-on'), false);
+  assert.match(await page.textContent('#reminder-note'), /通知權限被關閉了/);
   assert.deepEqual(errors, []);
   await context.close();
 });

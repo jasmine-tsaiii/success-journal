@@ -46,6 +46,7 @@ import { canvasToBlob, renderDayCard, renderInviteCard, renderThanksCard, shareB
 import { parseRef, shareLink, stripUtm } from './ref.js';
 import { initAnalytics, setAnalyticsAllowed, setUserProperties, track, trackView } from './analytics.js';
 import { detectPlatform, externalBrowserUrl, installNudge } from './install-core.js';
+import { DEFAULT_TIME, REMINDER_TIMES, disableReminder, enableReminder, markWritten, permission, pushSupport } from './reminders.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
@@ -373,6 +374,7 @@ function showView(name, { updateHash = true } = {}) {
   trackView(name, firstHref);
   firstHref = null;
   maybeFirstDayInstall();
+  maybeAskReminder();
 }
 
 /** 剛打開時的完整網址（含 UTM），第一次記錄分頁瀏覽時使用 */
@@ -502,6 +504,10 @@ function flushSave() {
   if (!hadRecord && state.entries[key]) {
     track('write_entry', { day: key === todayKey() ? 'today' : 'other' });
     if (recordedDayCount() === 1) firstDayPending = true;
+    if (key === todayKey()) {
+      reminderPending = true;
+      if (reminderState().on) markWritten(reminderState().endpoint, key);
+    }
   }
 }
 
@@ -1637,6 +1643,155 @@ function bindInstall() {
   detectInstall();
 }
 
+/* ---------- 每日提醒 ---------- */
+
+const reminderState = () => state.settings.reminder || {};
+function saveReminder(patch) {
+  state.settings = { ...state.settings, reminder: { ...reminderState(), ...patch } };
+  saveSettings(state.settings);
+}
+const reminderSupport = () => pushSupport({ platform: PLATFORM, standalone: isStandalone() });
+let reminderPending = false; // 今天寫好了，等停下來再問要不要提醒
+
+/** 時間選項：傍晚 17:00、晚上 21:00、睡前 23:00、自訂 */
+function renderTimeChips(box, selected, onPick, big = false) {
+  box.textContent = '';
+  const presets = REMINDER_TIMES.map((t) => t.time);
+  for (const { time, label } of REMINDER_TIMES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `reminder-time${time === selected ? ' on' : ''}`;
+    b.setAttribute('aria-pressed', String(time === selected));
+    b.innerHTML = big ? `<small>${label}</small>${time}` : time;
+    b.addEventListener('click', () => onPick(time));
+    box.appendChild(b);
+  }
+  const custom = !presets.includes(selected);
+  const input = document.createElement('input');
+  input.type = 'time';
+  input.step = 900;
+  input.className = `reminder-custom${custom && !big ? ' on' : ''}`;
+  input.setAttribute('aria-label', '自訂提醒時間');
+  input.value = custom ? selected : '';
+  input.addEventListener('change', () => input.value && onPick(input.value));
+  if (big) {
+    const wrap = document.createElement('label');
+    wrap.className = `reminder-custom-wrap${custom ? ' on' : ''}`;
+    wrap.innerHTML = '<small>自訂</small>';
+    wrap.appendChild(input);
+    box.appendChild(wrap);
+  } else {
+    box.appendChild(input);
+  }
+}
+
+function renderReminderSettings() {
+  const r = reminderState();
+  const support = reminderSupport();
+  const on = Boolean(r.on) && support === 'ok';
+  $('reminder-on').checked = on;
+  $('reminder-on').disabled = support !== 'ok';
+  $('reminder-time-row').hidden = !on;
+  renderTimeChips($('reminder-times-settings'), r.time || DEFAULT_TIME, (time) => changeReminderTime(time));
+  const note = $('reminder-note');
+  let text = '';
+  if (support === 'ios-needs-home') text = 'iPhone 需要先把成功日記加到主畫面、並從主畫面打開，才能收到提醒（iOS 16.4 以上）。';
+  else if (support === 'unsupported') text = '這個瀏覽器不支援通知，請改用手機的 Chrome 或 Safari 打開。';
+  else if (permission() === 'denied') text = '通知權限被關閉了。請到手機的「設定」→「通知」，找到成功日記（或瀏覽器）打開通知，再回來開啟提醒。';
+  note.textContent = text;
+  note.hidden = !text;
+  $('reminder-install').hidden = support !== 'ios-needs-home';
+}
+
+async function turnOnReminder(time, source) {
+  try {
+    const endpoint = await enableReminder(time);
+    saveReminder({ on: true, time, endpoint, asked: true });
+    track('reminder_on', { time, source });
+    toast(`好的，每天 ${time} 提醒你（當天寫過就不會打擾）`);
+    if (recordedToday()) markWritten(endpoint, todayKey());
+    return true;
+  } catch (e) {
+    saveReminder({ asked: true });
+    if (e.code === 'denied') toast('沒有開啟通知權限，所以無法提醒你。之後可以在手機設定裡打開。');
+    else toast(`開啟提醒失敗：${e.message || '請稍後再試'}`);
+    return false;
+  } finally {
+    renderReminderSettings();
+  }
+}
+
+async function changeReminderTime(time) {
+  const r = reminderState();
+  if (!r.on) {
+    saveReminder({ time });
+    renderReminderSettings();
+    return;
+  }
+  if (await turnOnReminder(time, 'settings_time')) toast(`提醒時間改成每天 ${time}`);
+}
+
+const recordedToday = () => hasRecord(state.entries[todayKey()]);
+
+function openReminderSheet() {
+  let picked = reminderState().time || DEFAULT_TIME;
+  const draw = () => renderTimeChips($('reminder-times-sheet'), picked, (t) => ((picked = t), draw()), true);
+  draw();
+  $('reminder-yes').onclick = async () => {
+    $('reminder-sheet').hidden = true;
+    await turnOnReminder(picked, 'ask');
+  };
+  $('reminder-no').onclick = () => {
+    $('reminder-sheet').hidden = true;
+    saveReminder({ asked: true });
+    track('reminder_declined', { platform: PLATFORM });
+  };
+  $('reminder-sheet').hidden = false;
+  $('reminder-yes').focus({ preventScroll: true });
+  track('reminder_ask', { platform: PLATFORM });
+}
+
+/** 今天寫好、停下來之後，問要不要每天提醒（每台裝置只問一次；不和加到主畫面的說明同時出現） */
+function maybeAskReminder() {
+  if (!reminderPending) return;
+  const el = document.activeElement;
+  if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return;
+  if (firstDayPending || !$('install-sheet').hidden || !$('share-sheet').hidden || !$('onboarding').hidden) return;
+  reminderPending = false;
+  const r = reminderState();
+  if (r.on || r.asked || reminderSupport() !== 'ok' || permission() === 'denied') return;
+  if (PLATFORM === 'desktop') return;
+  // 在瀏覽器裡、今天剛看過加到主畫面的說明：改天再問，一次只講一件事
+  if (!isStandalone() && installState().shownDay === todayKey()) return;
+  openReminderSheet();
+}
+
+function bindReminders() {
+  renderReminderSettings();
+  $('reminder-on').addEventListener('change', async () => {
+    if ($('reminder-on').checked) {
+      await turnOnReminder(reminderState().time || DEFAULT_TIME, 'settings');
+    } else {
+      const { endpoint } = reminderState();
+      saveReminder({ on: false, endpoint: null });
+      renderReminderSettings();
+      track('reminder_off', {});
+      toast('已關閉每日提醒');
+      disableReminder(endpoint).catch(() => {});
+    }
+  });
+  $('reminder-install').addEventListener('click', () => openInstall('guide', 'reminder'));
+  $('reminder-sheet').addEventListener('click', (e) => e.target === e.currentTarget && ($('reminder-sheet').hidden = true));
+  document.addEventListener('focusout', () => setTimeout(maybeAskReminder, 1500));
+  // 點了提醒通知、App 本來就開著：切到今日頁
+  navigator.serviceWorker?.addEventListener('message', (e) => {
+    if (e.data?.type === 'open-today') {
+      state.date = todayKey();
+      showView('today');
+    }
+  });
+}
+
 /* ---------- 綁定事件 ---------- */
 
 function bind() {
@@ -1906,6 +2061,8 @@ async function afterSignIn(session) {
   toast(`已登入 ${session.user.email}，正在同步⋯⋯`);
   pushRef();
   track('login', { method: 'Google' });
+  // 已經開了提醒：重新存一次，記到帳號上（在別台裝置寫過也不會提醒）
+  if (reminderState().on && reminderSupport() === 'ok') enableReminder(reminderState().time || DEFAULT_TIME).catch(() => {});
   renderCloud();
   updateBackupNudge();
   await sync.syncNow();
@@ -2115,6 +2272,7 @@ function init() {
   bindJar();
   bindAbout();
   bindInstall();
+  bindReminders();
   if (!storageOk) {
     toast('這個瀏覽器目前無法儲存資料（可能是無痕模式），紀錄將不會被保存。');
   }

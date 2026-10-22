@@ -12,3 +12,6 @@ export const DEVELOPER_IG = 'jas.soulcareer';
 // Google Analytics 4 評估 ID（公開值）；只在正式網址載入
 export const GA_MEASUREMENT_ID = 'G-NWWGD8G5KF';
 export const GA_HOST = 'success.jas-soul.com';
+
+// 每日提醒（網頁推播）的公開金鑰。對應的私鑰只放在 Supabase 的 Edge Function 密鑰裡，絕不放進程式碼。
+export const VAPID_PUBLIC_KEY = 'BAEWi5GDQ0xivNiQCHpPHDJtUKtTS6yk57bmnyAV_zbBxpBCG92H1SRqHXQRTd7MiUNCmVc_Ta4tg4Vf8a2fNAs';

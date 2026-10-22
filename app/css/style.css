@@ -2935,3 +2935,112 @@ a.set-row[hidden] {
 .install-actions .btn[hidden] {
   display: none;
 }
+
+/* ---------- 每日提醒 ---------- */
+.reminder-times {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.reminder-time {
+  border: 1.5px solid var(--rule);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-family: var(--latin);
+  font-size: 15px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.reminder-time.on {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.reminder-time small {
+  display: block;
+  font-family: var(--sans, inherit);
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.reminder-custom {
+  border: 1.5px solid var(--rule);
+  background: none;
+  color: var(--ink);
+  font-family: var(--latin);
+  font-size: 15px;
+  padding: 3px 6px;
+  min-width: 92px;
+}
+
+.reminder-custom.on {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.reminder-times-big {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 14px 0 6px;
+}
+
+.reminder-times-big .reminder-time,
+.reminder-times-big .reminder-custom-wrap {
+  padding: 10px 0 8px;
+  font-size: 22px;
+  text-align: center;
+}
+
+.reminder-times-big .reminder-custom-wrap {
+  border: 1.5px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.reminder-times-big .reminder-custom-wrap.on {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.reminder-times-big .reminder-custom {
+  border: 0;
+  background: none;
+  font-size: 20px;
+  text-align: center;
+  padding: 0;
+}
+
+.reminder-hint {
+  margin: 4px 0 16px;
+}
+
+.reminder-time-row[hidden],
+#reminder-install[hidden] {
+  display: none;
+}
+
+.reminder-custom-wrap small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.3;
+}
+
+.set-row.reminder-time-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0 14px;
+}
+
+.reminder-time-row .reminder-times {
+  justify-content: flex-start;
+}

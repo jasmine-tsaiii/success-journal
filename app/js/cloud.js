@@ -242,6 +242,24 @@ export async function downloadPhoto(id) {
   return res.blob();
 }
 
+/* ---------- 每日提醒 ---------- */
+
+/** 呼叫資料庫函式：有登入就用登入身分（提醒會記到帳號上），沒登入只帶公開金鑰 */
+export async function rpc(name, args) {
+  const init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args) };
+  let res;
+  if (getSession()) {
+    res = await api(`/rest/v1/rpc/${name}`, init);
+  } else {
+    try {
+      res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, { ...init, headers: { ...init.headers, apikey: SUPABASE_KEY } });
+    } catch {
+      throw new CloudError('目前沒有網路', 0);
+    }
+  }
+  await expectOk(res, '連線失敗，請稍後再試');
+}
+
 /* ---------- 管理者統計 ---------- */
 
 /** 使用狀況統計（只有管理者名單上的帳號可以呼叫） */

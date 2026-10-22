@@ -41,7 +41,7 @@
     // 版本檢查：頁面一定是最新的，但舊版的離線快取可能給了舊程式（畫面會少東西）。
     // 發現程式版本和頁面不同時，清掉舊快取、更新 Service Worker，重新載入一次。
     (function () {
-      var PAGE_VERSION = 'v31';
+      var PAGE_VERSION = 'v32';
       window.addEventListener('load', function () {
         if (window.__SJ_APP === PAGE_VERSION) return;
         try {
@@ -327,6 +327,23 @@
       </section>
 
       <!-- 個人化 -->
+      <section class="set-group" aria-labelledby="set-reminder">
+        <h2 class="set-label" id="set-reminder"><span class="label-caps">Reminder</span>每日提醒</h2>
+        <label class="set-row">
+          <span class="set-main">
+            <span class="set-title">每天提醒我寫</span>
+            <span class="set-sub">當天已經寫了，就不會提醒</span>
+          </span>
+          <input type="checkbox" class="switch" id="reminder-on">
+        </label>
+        <div class="set-row reminder-time-row" id="reminder-time-row">
+          <span class="set-title">提醒時間</span>
+          <span class="reminder-times" id="reminder-times-settings"></span>
+        </div>
+        <p class="set-note" id="reminder-note" hidden></p>
+        <button type="button" class="text-btn" id="reminder-install" hidden>怎麼加到主畫面 →</button>
+      </section>
+
       <section class="set-group" aria-labelledby="set-personal">
         <h2 class="set-label" id="set-personal"><span class="label-caps">Personal</span>個人化</h2>
         <form class="set-row" id="name-form" autocomplete="off">
@@ -487,6 +504,20 @@
   </div>
 
 
+
+  <div class="share-sheet install-sheet" id="reminder-sheet" role="dialog" aria-modal="true" aria-labelledby="reminder-title" hidden>
+    <div class="install-inner">
+      <p class="label-caps">Daily Reminder</p>
+      <h2 class="install-title" id="reminder-title">要不要每天提醒你？</h2>
+      <p class="install-lead">選一個你通常比較有空的時間。<br>當天已經寫了，就不會打擾你。</p>
+      <div class="reminder-times reminder-times-big" id="reminder-times-sheet"></div>
+      <p class="small reminder-hint">之後可以在「設定」改時間或關閉</p>
+      <div class="install-actions">
+        <button type="button" class="btn btn-primary" id="reminder-yes">好，每天提醒我</button>
+        <button type="button" class="text-btn" id="reminder-no">先不用</button>
+      </div>
+    </div>
+  </div>
   <div class="share-sheet install-sheet" id="install-sheet" role="dialog" aria-modal="true" aria-labelledby="install-title" hidden>
     <div class="install-inner">
       <img class="install-app-icon" src="icons/app-icon-192.png" alt="" width="72" height="72">
