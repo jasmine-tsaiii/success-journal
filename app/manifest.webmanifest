@@ -1,7 +1,7 @@
 {
   "name": "成功日記",
   "short_name": "成功日記",
-  "description": "願景板拼貼與成功日記：每天記錄三件成功小事，搭配溫柔的肯定語。用 Google 帳號登入，自動同步到雲端。",
+  "description": "每天寫下三件小成功和感恩的事，還能拼貼願景板。Google 登入自動雲端同步。",
   "lang": "zh-Hant-TW",
   "id": "./",
   "start_url": "./",
