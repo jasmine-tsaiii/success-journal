@@ -69,7 +69,7 @@ test('脈輪依星期輪替：週一海底輪 → 週日頂輪', () => {
 
 test('肯定語會隨週次輪替，且每句最終都會出現', () => {
   const seen = new Set();
-  for (let w = 0; w < 6; w++) seen.add(chakraForDate(addDays('2026-10-05', w * 7)).affirmation);
+  for (let w = 0; w < CHAKRAS[0].affirmations.length; w++) seen.add(chakraForDate(addDays('2026-10-05', w * 7)).affirmation);
   assert.equal(seen.size, CHAKRAS[0].affirmations.length);
   // 同一週同一天結果固定
   assert.deepEqual(chakraForDate('2026-10-05'), chakraForDate('2026-10-05'));
