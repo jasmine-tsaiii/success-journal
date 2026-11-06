@@ -59,7 +59,7 @@ import {
   comfortLine,
   pickIdea,
 } from './courage-core.js';
-import { DEFAULT_TIME, REMINDER_TIMES, disableReminder, enableReminder, markWritten, permission, pushSupport } from './reminders.js';
+import { DEFAULT_TIME, REMINDER_TIMES, disableReminder, enableReminder, markWritten, permission, pushSupport, refreshReminder } from './reminders.js';
 import { usedImageIds } from './board-core.js';
 import { blobToDataUrl, dataUrlToBlob, getImage, putImage } from './images.js';
 import * as cloud from './cloud.js';
@@ -2149,8 +2149,36 @@ function maybeAskReminder() {
   openReminderSheet();
 }
 
+/** 打開 App（或切回來超過一小時）時，確認提醒還有效；失效就自動補上 */
+let reminderCheckedAt = 0;
+async function checkReminder() {
+  const r = reminderState();
+  if (!r.on || reminderSupport() !== 'ok' || Date.now() - reminderCheckedAt < 60 * 60 * 1000) return;
+  reminderCheckedAt = Date.now();
+  if (permission() === 'denied') {
+    // 在手機設定裡關掉了通知：App 也顯示關閉，設定頁會說明怎麼重新打開
+    saveReminder({ on: false, endpoint: null });
+    renderReminderSettings();
+    track('reminder_lost', { reason: 'denied' });
+    return;
+  }
+  if (permission() !== 'granted') return;
+  try {
+    const endpoint = await refreshReminder(r.time || DEFAULT_TIME, r.endpoint);
+    if (endpoint !== r.endpoint) {
+      saveReminder({ endpoint });
+      track('reminder_renewed', {});
+    }
+    if (recordedToday()) markWritten(endpoint, todayKey());
+  } catch {
+    reminderCheckedAt = 0; // 沒網路之類的：下次再試
+  }
+}
+
 function bindReminders() {
   renderReminderSettings();
+  checkReminder();
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && checkReminder());
   $('reminder-on').addEventListener('change', async () => {
     if ($('reminder-on').checked) {
       await turnOnReminder(reminderState().time || DEFAULT_TIME, 'settings');
@@ -2496,13 +2524,14 @@ function bindCloud() {
 
 const REF_KEY = 'success-journal.ref.v1';
 
-/** 朋友從分享連結點進來：記下第一次的來源，並把網址上的 utm_ 參數拿掉 */
+/** 朋友從分享連結點進來：記下第一次的來源（GA 和使用狀況頁都會用到），並把網址上的 utm_ 參數拿掉 */
 function captureRef() {
   const ref = parseRef(location.search);
   if (!ref) return;
   try {
     if (!localStorage.getItem(REF_KEY)) localStorage.setItem(REF_KEY, JSON.stringify(ref));
-    history.replaceState(history.state, '', stripUtm(location.href));
+    // 在 Threads、IG、LINE 等 App 裡先不拿掉：用它們選單的「在瀏覽器開啟」時，UTM 才會一起帶過去
+    if (PLATFORM !== 'inapp') history.replaceState(history.state, '', stripUtm(location.href));
   } catch {
     /* 忽略 */
   }
