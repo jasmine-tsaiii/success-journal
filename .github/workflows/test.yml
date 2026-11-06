@@ -8,7 +8,8 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # 固定版本：ubuntu-latest 換成 26.04 後，Playwright 1.56 無法安裝 Chromium
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
