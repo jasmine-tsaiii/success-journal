@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>成功日記｜每天寫下 3 件小成功・感恩日記與願景板 App</title>
+  <title>成功日記｜每天寫下三件小成功・感恩日記・願景板</title>
   <meta name="description" content="免費的成功日記 App：每天寫下三件小成功和感恩的事，有引導問題、每日提醒和回顧統計，還能拼貼願景板。打開網頁就能寫，Google 登入自動雲端同步。">
   <link rel="canonical" href="https://success.jas-soul.com/">
   <meta name="theme-color" content="#F3EBDF">
@@ -11,7 +11,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="成功日記">
   <meta property="og:locale" content="zh_TW">
-  <meta property="og:title" content="成功日記｜每天寫下 3 件小成功">
+  <meta property="og:title" content="成功日記｜每天寫下三件小成功">
   <meta property="og:description" content="免費的成功日記 App：每天三件小成功、感恩日記、願景板。打開網頁就能寫，換手機也找得回來。">
   <meta property="og:url" content="https://success.jas-soul.com/">
   <meta property="og:image" content="https://success.jas-soul.com/og-image.png">
@@ -24,23 +24,35 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "成功日記",
-    "url": "https://success.jas-soul.com/",
-    "description": "免費的成功日記 App：每天寫下三件小成功和感恩的事，有引導問題、每日提醒和回顧統計，還能拼貼願景板。",
-    "inLanguage": "zh-Hant-TW",
-    "applicationCategory": "LifestyleApplication",
-    "operatingSystem": "iOS, Android, Windows, macOS",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "TWD" },
-    "author": {
-      "@type": "Person",
-      "name": "Jasmine",
-      "sameAs": ["https://www.instagram.com/jas.soulcareer/"]
-    }
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "name": "成功日記",
+        "alternateName": "Success Journal",
+        "url": "https://success.jas-soul.com/",
+        "inLanguage": "zh-Hant-TW"
+      },
+      {
+        "@type": "WebApplication",
+        "name": "成功日記",
+        "url": "https://success.jas-soul.com/",
+        "description": "免費的成功日記 App：每天寫下三件小成功和感恩的事，有引導問題、每日提醒和回顧統計，還能拼貼願景板。",
+        "inLanguage": "zh-Hant-TW",
+        "applicationCategory": "LifestyleApplication",
+        "operatingSystem": "iOS, Android, Windows, macOS",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "TWD" },
+        "author": {
+          "@type": "Person",
+          "name": "Jasmine",
+          "sameAs": ["https://www.instagram.com/jas.soulcareer/"]
+        }
+      }
+    ]
   }
   </script>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/app-favicon-64.png" type="image/png" sizes="64x64">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="icons/app-favicon-96.png" type="image/png" sizes="96x96">
   <link rel="icon" href="icons/app-icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="icons/app-apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -61,7 +73,7 @@
     // 版本檢查：頁面一定是最新的，但舊版的離線快取可能給了舊程式（畫面會少東西）。
     // 發現程式版本和頁面不同時，清掉舊快取、更新 Service Worker，重新載入一次。
     (function () {
-      var PAGE_VERSION = 'v34';
+      var PAGE_VERSION = 'v35';
       window.addEventListener('load', function () {
         if (window.__SJ_APP === PAGE_VERSION) return;
         try {

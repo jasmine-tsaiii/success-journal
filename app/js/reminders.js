@@ -57,6 +57,17 @@ export async function enableReminder(time) {
   return json.endpoint;
 }
 
+/**
+ * 打開 App 時檢查提醒還在不在：瀏覽器偶爾會換掉推播訂閱，伺服器也會刪掉失效的訂閱，
+ * 這時 App 看起來「開著」，其實已經收不到。重新存一次（已有權限，不會跳出詢問）。
+ * 回傳目前的 endpoint；換了新的就把舊的刪掉。
+ */
+export async function refreshReminder(time, oldEndpoint) {
+  const endpoint = await enableReminder(time);
+  if (oldEndpoint && oldEndpoint !== endpoint) cloud.rpc('sj_push_delete', { p_endpoint: oldEndpoint }).catch(() => {});
+  return endpoint;
+}
+
 export async function disableReminder(endpoint) {
   try {
     const reg = await registration();

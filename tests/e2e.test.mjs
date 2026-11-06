@@ -1520,6 +1520,7 @@ test('加到主畫面：在 LINE 裡打開時，一進來就引導用手機瀏�
   const url = await page.getAttribute('#install-primary', 'data-url');
   assert.match(url, /utm_medium=thanks_card/, '帶著原本的 UTM');
   assert.match(url, /openExternalBrowser=1/, 'LINE 會用預設瀏覽器打開');
+  assert.match(page.url(), /utm_medium=thanks_card/, '在 App 裡不拿掉網址上的 UTM（用 App 選單的「在瀏覽器開啟」也帶得過去）');
   if (SCREENSHOT_DIR) {
     await page.waitForTimeout(500);
     await page.screenshot({ path: join(SCREENSHOT_DIR, '72-install-line.png') });
@@ -1564,17 +1565,57 @@ test('加到主畫面：電腦上不主動提醒', async () => {
 });
 
 /** 模擬瀏覽器的通知權限與推播訂閱（測試環境沒有真的推播服務） */
-async function fakePush(page, { permission = 'granted' } = {}) {
-  await page.addInitScript((perm) => {
-    let current = 'default';
+async function fakePush(page, { permission = 'granted', initial = 'default' } = {}) {
+  await page.addInitScript(([perm, init]) => {
+    let current = init;
     Object.defineProperty(Notification, 'permission', { get: () => current });
     Notification.requestPermission = async () => (current = perm);
     const sub = { endpoint: 'https://push.example/device-1', toJSON: () => ({ endpoint: 'https://push.example/device-1', keys: { p256dh: 'P256', auth: 'AUTH' } }), unsubscribe: async () => true };
     let subscribed = false;
     PushManager.prototype.getSubscription = async () => (subscribed ? sub : null);
     PushManager.prototype.subscribe = async () => ((subscribed = true), sub);
-  }, permission);
+  }, [permission, initial]);
 }
+
+test('每日提醒：打開 App 時檢查訂閱，失效會自動補上；手機設定關掉通知時顯示關閉', async () => {
+  const server = fakeCloud();
+  const { context, page, errors } = await newPage({ cloud: server, userAgent: IPHONE_SAFARI });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { get: () => true });
+    if (!sessionStorage.getItem('seeded')) {
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('success-journal.settings.v1', JSON.stringify({ reminder: { on: true, time: '21:00', endpoint: 'https://push.example/old', asked: true } }));
+    }
+  });
+  // 瀏覽器把舊的訂閱換掉了（getSubscription 一開始是空的），通知權限還在
+  await fakePush(page, { initial: 'granted' });
+  await page.reload();
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_save'), '重新存訂閱');
+  const save = server.pushCalls.find((c) => c.name === 'sj_push_save');
+  assert.deepEqual([save.args.p_endpoint, save.args.p_remind_at], ['https://push.example/device-1', '21:00']);
+  await expectEventually(() => server.pushCalls.some((c) => c.name === 'sj_push_delete' && c.args.p_endpoint === 'https://push.example/old'), '刪掉舊的');
+  const r = await page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).reminder);
+  assert.deepEqual([r.on, r.endpoint], [true, 'https://push.example/device-1']);
+  await context.close();
+
+  // 在手機設定裡關掉通知：App 也改成關閉，設定頁有說明
+  const b = await newPage({ cloud: fakeCloud(), userAgent: IPHONE_SAFARI });
+  await b.page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { get: () => true });
+    if (!sessionStorage.getItem('seeded')) {
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('success-journal.settings.v1', JSON.stringify({ reminder: { on: true, time: '21:00', endpoint: 'https://push.example/old', asked: true } }));
+    }
+  });
+  await fakePush(b.page, { permission: 'denied', initial: 'denied' });
+  await b.page.reload();
+  await expectEventually(async () => (await b.page.evaluate(() => JSON.parse(localStorage.getItem('success-journal.settings.v1')).reminder.on)) === false, '改成關閉');
+  assert.equal(await b.page.isChecked('#reminder-on'), false);
+  assert.match(await b.page.textContent('#reminder-note'), /通知權限被關閉了/);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(b.errors, []);
+  await b.context.close();
+});
 
 test('每日提醒：從主畫面寫完今天後詢問；選時間開啟；當天寫過會告知；設定頁可改時間、關閉', async () => {
   const server = fakeCloud();

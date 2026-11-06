@@ -48,6 +48,9 @@ const outputs = [
   // 圖案都在中心 80% 的安全區域內，可直接作為 maskable 圖示
   ['app-icon-maskable-512.png', 512],
   ['app-favicon-64.png', 64],
+  // Google 搜尋結果的小圖示：要 48 的倍數
+  ['app-favicon-48.png', 48],
+  ['app-favicon-96.png', 96],
 ];
 
 const serif700 = await font('noto-serif-tc-700.woff2');
